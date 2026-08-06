@@ -1,0 +1,106 @@
+- generic [ref=f6e3]:
+  - banner [ref=f6e4]:
+    - link "跳到主要内容" [ref=f6e5] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f6e6]:
+      - link "花吻陶首页" [ref=f6e7] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f6e12]:
+          - strong [ref=f6e13]: 花吻陶
+          - generic [ref=f6e14]: FLOWER KISS TAO
+      - navigation "主导航" [ref=f6e15]:
+        - link "首页" [ref=f6e16] [cursor=pointer]:
+          - /url: /
+        - link "逛植物" [ref=f6e17] [cursor=pointer]:
+          - /url: /plants
+        - link "智能推荐" [ref=f6e18] [cursor=pointer]:
+          - /url: /recommendation
+        - link "养护指南" [ref=f6e19] [cursor=pointer]:
+          - /url: /care
+      - search [ref=f6e20]:
+        - generic [ref=f6e21]: 搜索植物
+        - searchbox "搜索植物" [ref=f6e22]
+        - button "提交搜索" [ref=f6e23] [cursor=pointer]
+      - generic [ref=f6e27]:
+        - button "登录" [ref=f6e28] [cursor=pointer]
+        - button "购物车，共 0 件商品" [ref=f6e29] [cursor=pointer]
+  - main [ref=f6e34]:
+    - generic [ref=f6e206]:
+      - generic "面包屑导航" [ref=f6e207]:
+        - link "植物商店" [ref=f6e208] [cursor=pointer]:
+          - /url: /plants
+        - generic [ref=f6e209]: /
+        - generic [ref=f6e210]: 金边虎尾兰
+      - region [ref=f6e211]:
+        - generic [ref=f6e212]:
+          - generic [ref=f6e213]:
+            - img "叶片挺拔且带有金色叶缘的虎尾兰" [ref=f6e214]
+            - generic [ref=f6e215]: 新手友好
+          - generic [ref=f6e216]:
+            - paragraph [ref=f6e217]: 耐阴绿植
+            - heading "金边虎尾兰" [level=1] [ref=f6e218]
+            - paragraph [ref=f6e219]: Dracaena trifasciata
+            - paragraph [ref=f6e220]: 挺拔叶片和低频养护需求，让光线有限的小空间也能拥有秩序感。
+            - list "适配标签" [ref=f6e221]:
+              - listitem [ref=f6e222]: 新手入门
+              - listitem [ref=f6e223]: 低频浇水
+              - listitem [ref=f6e224]: 卧室角落
+            - generic [ref=f6e225]:
+              - paragraph [ref=f6e226]: 为什么推荐它
+              - strong [ref=f6e227]: 耐受较弱光线和短期忘记浇水，直立株型占地小，很适合第一次认真养植物的人。
+            - generic [ref=f6e228]:
+              - paragraph [ref=f6e229]: ¥69
+              - button "加入购物车" [ref=f6e230] [cursor=pointer]
+            - paragraph [ref=f6e231]
+      - region [ref=f6e232]:
+        - generic [ref=f6e233]:
+          - paragraph [ref=f6e234]: 植物档案
+          - heading "带回家之前，先了解它的日常" [level=2] [ref=f6e235]
+        - generic [ref=f6e236]:
+          - generic [ref=f6e237]:
+            - term [ref=f6e238]: 光照
+            - definition [ref=f6e239]: 低至中等光照
+          - generic [ref=f6e240]:
+            - term [ref=f6e241]: 浇水
+            - definition [ref=f6e242]: 盆土完全干透后浇透
+          - generic [ref=f6e243]:
+            - term [ref=f6e244]: 株型
+            - definition [ref=f6e245]: 中型 · 约 50 厘米
+          - generic [ref=f6e246]:
+            - term [ref=f6e247]: 宠物家庭
+            - definition [ref=f6e248]: 宠物需隔离
+      - generic [ref=f6e250]:
+        - generic [ref=f6e251]:
+          - paragraph [ref=f6e252]: 关于这株植物
+          - heading "让绿意自然融入生活" [level=2] [ref=f6e253]
+          - paragraph [ref=f6e254]: 金边虎尾兰耐旱且适应力强，可以放在卧室、玄关或办公室。更明亮的散射光有助于维持清晰叶纹，浇水前务必确认盆土已经干透。
+        - generic [ref=f6e255]:
+          - heading "养护备忘" [level=2] [ref=f6e256]
+          - list [ref=f6e257]:
+            - listitem [ref=f6e258]:
+              - generic [ref=f6e259]: "01"
+              - paragraph [ref=f6e260]: 宁干勿湿，托盘积水要及时倒掉
+            - listitem [ref=f6e261]:
+              - generic [ref=f6e262]: "02"
+              - paragraph [ref=f6e263]: 每月擦拭叶片以保持清洁
+            - listitem [ref=f6e264]:
+              - generic [ref=f6e265]: "03"
+              - paragraph [ref=f6e266]: 低温季节延长两次浇水的间隔
+  - contentinfo [ref=f6e189]:
+    - generic [ref=f6e190]:
+      - generic [ref=f6e191]:
+        - paragraph [ref=f6e192]: 花吻陶
+        - paragraph [ref=f6e193]: 从光照、空间与生活习惯出发，让每一盆植物都有更合适的位置。
+      - navigation "页脚导航" [ref=f6e194]:
+        - link "逛植物" [ref=f6e195] [cursor=pointer]:
+          - /url: /plants
+        - link "智能推荐" [ref=f6e196] [cursor=pointer]:
+          - /url: /recommendation
+        - link "养护指南" [ref=f6e197] [cursor=pointer]:
+          - /url: /care
+      - generic [ref=f6e198]:
+        - strong [ref=f6e199]: 先判断适合，再安心带回家
+        - generic [ref=f6e200]: 推荐依据清晰可见，养护建议具体可执行。
+    - generic [ref=f6e201]:
+      - generic [ref=f6e202]: © 2026 花吻陶
+      - generic [ref=f6e203]: 为家庭与办公空间认真选植物

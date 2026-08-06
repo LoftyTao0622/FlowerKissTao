@@ -1,0 +1,32 @@
+server:
+  port: 8099
+spring:
+  application:
+    name: FlowerKissTao
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/plant?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+mybatis-plus:
+  # 实体扫描包，用于日志与类型别名
+  type-aliases-package: com.zyt.flowerkisstao.**.domain.entity
+  # 各模块自带 XML 时放在 resources/mapper/<模块名>/ 下
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    banner: false
+    db-config:
+      # 主键用数据库自增，与 schema.sql 的 AUTO_INCREMENT 对应
+      id-type: auto
+app:
+  jwt:
+    # 生产环境必须通过环境变量注入，默认值仅供本地开发
+    secret: ${JWT_SECRET:flowerkisstao-local-dev-secret-key-please-change-in-production}
+    # 访问令牌有效期，单位分钟
+    expire-minutes: ${JWT_EXPIRE_MINUTES:120}
+    # 请求头名称与 token 前缀
+    header: Authorization
+    prefix: "Bearer "

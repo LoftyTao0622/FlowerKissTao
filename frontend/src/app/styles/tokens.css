@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light;
+  --color-canvas: oklch(96% 0.014 86);
+  --color-surface: oklch(98.5% 0.008 86);
+  --color-surface-muted: oklch(93.5% 0.012 80);
+  --color-brand: oklch(42% 0.105 158);
+  --color-brand-accent: oklch(47% 0.125 158);
+  --color-brand-deep: oklch(30% 0.045 164);
+  --color-brand-soft: oklch(91% 0.037 164);
+  --color-ink: oklch(23% 0.028 158);
+  --color-text: oklch(31% 0.026 158);
+  --color-text-muted: oklch(47% 0.025 158);
+  --color-border: oklch(84% 0.018 150);
+  --color-gold: oklch(72% 0.105 78);
+  --color-danger: oklch(49% 0.18 28);
+  --color-on-brand: oklch(97% 0.01 90);
+  --color-on-dark-muted: oklch(86% 0.025 145);
+  --color-overlay: oklch(18% 0.02 158 / 0.32);
+  --shadow-card: 0 0 0.5px oklch(18% 0.02 158 / 0.14),
+    0 1px 1px oklch(18% 0.02 158 / 0.18);
+  --shadow-nav: 0 1px 3px oklch(18% 0.02 158 / 0.1),
+    0 2px 2px oklch(18% 0.02 158 / 0.06),
+    0 0 2px oklch(18% 0.02 158 / 0.07);
+  --radius-card: 12px;
+  --radius-pill: 999px;
+  --content-max: 90rem;
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4rem;
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --font-sans: Inter, Manrope, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  --el-color-primary: var(--color-brand-accent);
+  --el-color-danger: var(--color-danger);
+  --el-bg-color: var(--color-surface);
+  --el-bg-color-overlay: var(--color-surface);
+  --el-fill-color-blank: var(--color-surface);
+  --el-fill-color-light: var(--color-surface-muted);
+  --el-border-color: var(--color-border);
+  --el-border-color-light: var(--color-border);
+  --el-text-color-primary: var(--color-ink);
+  --el-text-color-regular: var(--color-text);
+  --el-text-color-secondary: var(--color-text-muted);
+  --el-border-radius-base: var(--radius-card);
+  --el-font-family: var(--font-sans);
+}
