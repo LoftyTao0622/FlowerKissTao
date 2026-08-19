@@ -45,6 +45,33 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = ''
     user.value = null
     clearToken()
+    // 画像、推荐、购物车、订单、地址都是私有数据，登出后必须一并清掉，
+    // 否则换账号登录会看到上一个人的东西。在这里 import 而不是文件顶部：
+    // 这些 store 都依赖 request 层，顶部 import 会与本文件末尾的
+    // setUnauthorizedHandler 形成循环引用
+    void import('@/modules/user/stores/profile').then(({ useProfileStore }) => {
+      useProfileStore().reset()
+    })
+    void import('@/modules/recommendation/stores/recommendation').then(
+      ({ useRecommendationStore }) => {
+        useRecommendationStore().reset()
+      },
+    )
+    void import('@/modules/trade/stores/cart').then(({ useCartStore }) => {
+      useCartStore().reset()
+    })
+    void import('@/modules/trade/stores/order').then(({ useOrderStore }) => {
+      useOrderStore().reset()
+    })
+    void import('@/modules/trade/stores/address').then(({ useAddressStore }) => {
+      useAddressStore().reset()
+    })
+    void import('@/modules/care/stores/care').then(({ useCareStore }) => {
+      useCareStore().reset()
+    })
+    void import('@/modules/knowledge/stores/knowledge').then(({ useKnowledgeStore }) => {
+      useKnowledgeStore().reset()
+    })
   }
 
   async function login(payload: LoginPayload) {

@@ -8,11 +8,13 @@
     <name>FlowerKissTao</name>
     <description>FlowerKissTao</description>
     <properties>
-        <java.version>1.8</java.version>
+        <!-- release 而非 source/target：只有它会同时校验 API 是否属于目标 JDK。
+             取 17 是 Spring Boot 3 的下限，也让 JDK 17/20/21 都能构建本项目 -->
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <spring-boot.version>2.6.13</spring-boot.version>
-        <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
+        <spring-boot.version>3.5.16</spring-boot.version>
+        <mybatis-plus.version>3.5.15</mybatis-plus.version>
         <jjwt.version>0.11.5</jjwt.version>
     </properties>
     <dependencies>
@@ -52,10 +54,19 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- ORM：自带 CRUD 与分页，省掉五张表的样板 Mapper XML -->
+        <!-- ORM：自带 CRUD 与分页，省掉五张表的样板 Mapper XML。
+             Boot 3 必须用 spring-boot3-starter，普通 starter 依赖 javax.* 的 mybatis-spring 自动配置 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+
+        <!-- 3.5.9 起 JSqlParser 被拆成可选依赖。
+             MybatisPlusConfig 里的 PaginationInnerInterceptor 要靠它解析 SQL，缺了启动即报 ClassNotFound -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
 
@@ -103,11 +114,14 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <!-- release 取自 properties 的 maven.compiler.release -->
                     <encoding>UTF-8</encoding>
+                    <compilerArgs>
+                        <!-- 保留形参名，Spring 6 起不再从 -debug 信息推断构造器注入的参数名 -->
+                        <arg>-parameters</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
             <plugin>

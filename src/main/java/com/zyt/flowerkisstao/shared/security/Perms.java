@@ -38,9 +38,13 @@ public final class Perms {
     public static final String KNOWLEDGE_ARTICLE_WRITE = "knowledge:article:write";
     public static final String KNOWLEDGE_ARTICLE_PUBLISH = "knowledge:article:publish";
 
-    // operation 运营位
+    // operation 运营
     public static final String OPERATION_BANNER_EDIT = "operation:banner:edit";
     public static final String OPERATION_PAGE_ARRANGE = "operation:page:arrange";
+    /** 运营看板读取。不能借用 user:account:read，否则权限语义错误 */
+    public static final String OPERATION_DASHBOARD_READ = "operation:dashboard:read";
+    /** 管理操作日志读取 */
+    public static final String OPERATION_LOG_READ = "operation:log:read";
 
     // user 账号与权限
     public static final String USER_PROFILE_READ_OWN = "user:profile:read-own";

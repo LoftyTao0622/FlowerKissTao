@@ -3,11 +3,13 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useCartStore } from '@/modules/trade/stores/cart'
+import { fetchArticles } from '@/modules/knowledge/api/knowledge'
+import type { Article } from '@/modules/knowledge/types/knowledge'
 import { ApiError } from '@/shared/api/request'
 import { ErrorCode } from '@/shared/api/types'
 
 import { fetchPlantBySlug } from '../api/catalog'
-import type { CatalogPlant } from '../types/catalog'
+import type { CatalogPlant, CatalogSku } from '../types/catalog'
 
 const props = defineProps<{
   plantId?: string
@@ -16,6 +18,7 @@ const props = defineProps<{
 const route = useRoute()
 const cart = useCartStore()
 const added = ref(false)
+const adding = ref(false)
 let feedbackTimer: number | undefined
 
 const plant = ref<CatalogPlant | null>(null)
@@ -23,7 +26,26 @@ const loading = ref(true)
 const notFound = ref(false)
 const errorMessage = ref('')
 
+/** 与这个品种相关的知识文章，方案要求可从商品详情跳到对应指南 */
+const guides = ref<Article[]>([])
+
+/**
+ * 选中的 SKU。默认取 defaultSkuId，没有则取第一个。
+ *
+ * 改造前加购按 slug 提交，同一株植物有多个规格时根本表达不了"买的是哪个"。
+ * 现在详情页能切换规格，加购提交的是 skuId，价格与库存也都跟着选中的规格走。
+ */
+const selectedSkuId = ref<number | null>(null)
+
 const currentPlantId = computed(() => props.plantId ?? String(route.params.plantId ?? ''))
+
+const skus = computed<CatalogSku[]>(() => plant.value?.skus ?? [])
+
+const selectedSku = computed<CatalogSku | null>(() =>
+  skus.value.find((sku) => sku.id === selectedSkuId.value) ?? skus.value[0] ?? null,
+)
+
+const outOfStock = computed(() => (selectedSku.value?.stock ?? 0) <= 0)
 
 async function loadPlant() {
   const slug = currentPlantId.value
@@ -39,6 +61,8 @@ async function loadPlant() {
 
   try {
     plant.value = await fetchPlantBySlug(slug)
+    // 切换植物时重置规格选择，防止残留上一株的选中态
+    selectedSkuId.value = plant.value?.defaultSkuId ?? null
   } catch (error) {
     plant.value = null
     if (error instanceof ApiError && error.code === ErrorCode.PLANT_NOT_FOUND) {
@@ -50,22 +74,36 @@ async function loadPlant() {
   } finally {
     loading.value = false
   }
+
+  // 相关指南与主内容并行加载失败也不影响看商品，所以单独 try 住
+  guides.value = []
+  if (plant.value) {
+    try {
+      const result = await fetchArticles({ speciesCode: plant.value.slug }, 1, 3)
+      guides.value = result.records
+    } catch {
+      // 指南加载失败静默：商品详情本身不依赖它
+    }
+  }
 }
 
 // 在两株植物的详情页之间跳转时组件不会重新挂载，只有路由参数在变
 watch(currentPlantId, loadPlant, { immediate: true })
 
-function addToCart() {
-  if (!plant.value) return
+function selectSku(sku: CatalogSku) {
+  selectedSkuId.value = sku.id
+}
 
-  cart.addPlant({
-    // 传 slug 而非数字 id：购物车里的存量数据就是 slug 形态，
-    // 换成数字会让同一株植物在购物车里裂成两行
-    id: plant.value.slug,
-    name: plant.value.name,
-    price: plant.value.price,
-    image: plant.value.image,
-  })
+async function addToCart() {
+  if (!plant.value || !selectedSku.value) return
+
+  adding.value = true
+  const ok = await cart.add(selectedSku.value.id, 1)
+  adding.value = false
+  if (!ok) {
+    errorMessage.value = cart.errorMessage
+    return
+  }
 
   added.value = true
   if (feedbackTimer) window.clearTimeout(feedbackTimer)
@@ -116,15 +154,41 @@ onBeforeUnmount(() => {
               <strong>{{ plant.recommendationReason }}</strong>
             </div>
 
+            <!-- 规格选择器：同一株植物可能有多个尺寸与价格 -->
+            <fieldset v-if="skus.length > 1" class="detail-skus">
+              <legend>选择规格</legend>
+              <div class="detail-skus__options">
+                <button
+                  v-for="sku in skus"
+                  :key="sku.id"
+                  type="button"
+                  :class="{ active: selectedSku?.id === sku.id }"
+                  :disabled="sku.stock <= 0"
+                  :aria-pressed="selectedSku?.id === sku.id"
+                  @click="selectSku(sku)"
+                >
+                  <span>{{ sku.spec }}</span>
+                  <small v-if="sku.stock > 0">¥{{ sku.price }} · 库存 {{ sku.stock }}</small>
+                  <small v-else>已售罄</small>
+                </button>
+              </div>
+            </fieldset>
+
             <div class="detail-purchase">
-              <p class="detail-price"><span>¥</span>{{ plant.price }}</p>
-              <button class="detail-purchase__button" type="button" @click="addToCart">
-                {{ added ? '已加入购物车' : '加入购物车' }}
+              <p class="detail-price"><span>¥</span>{{ selectedSku?.price ?? plant.price }}</p>
+              <button
+                class="detail-purchase__button"
+                type="button"
+                :disabled="outOfStock || adding"
+                @click="addToCart"
+              >
+                {{ outOfStock ? '暂时缺货' : adding ? '正在加入…' : added ? '已加入购物车' : '加入购物车' }}
               </button>
             </div>
             <p class="detail-feedback" aria-live="polite">
-              {{ added ? `${plant.name}已加入购物车` : '' }}
+              {{ added ? `${plant.name}已加入购物车` : outOfStock ? '这件规格暂时缺货，可以看看其他规格。' : '' }}
             </p>
+            <p v-if="errorMessage" class="detail-error" role="alert">{{ errorMessage }}</p>
           </div>
         </div>
       </section>
@@ -171,6 +235,19 @@ onBeforeUnmount(() => {
                 <p>{{ tip }}</p>
               </li>
             </ol>
+
+            <!-- 方案要求可从商品详情跳到对应指南。按品种关联查出来的，不是写死的 -->
+            <div v-if="guides.length" class="detail-guides">
+              <h3>想了解更多</h3>
+              <ul>
+                <li v-for="guide in guides" :key="guide.id">
+                  <RouterLink :to="{ name: 'knowledge-detail', params: { slug: guide.slug } }">
+                    {{ guide.title }}
+                    <small>{{ guide.categoryLabel }}</small>
+                  </RouterLink>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -361,6 +438,62 @@ onBeforeUnmount(() => {
   margin-top: var(--space-lg);
 }
 
+/* 规格选择器：同一株植物可能有多个尺寸与价格 */
+.detail-skus {
+  margin: var(--space-lg) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.detail-skus legend {
+  margin-bottom: var(--space-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.detail-skus__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-sm);
+}
+
+.detail-skus__options button {
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+}
+
+.detail-skus__options button.active {
+  border-color: var(--color-brand);
+  outline: 2px solid color-mix(in srgb, var(--color-brand) 25%, transparent);
+}
+
+.detail-skus__options button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.detail-skus__options span {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.detail-skus__options small {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.detail-error {
+  margin: var(--space-sm) 0 0;
+  color: var(--color-danger);
+  font-size: 0.82rem;
+}
+
 .detail-price {
   min-width: 6rem;
   color: var(--color-ink);
@@ -505,6 +638,47 @@ onBeforeUnmount(() => {
 .detail-care li p {
   color: color-mix(in oklch, var(--color-on-brand) 84%, transparent);
   line-height: 1.65;
+}
+
+.detail-guides {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px dashed color-mix(in oklch, var(--color-on-brand) 28%, transparent);
+}
+
+.detail-guides h3 {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-on-brand);
+  font-size: 0.88rem;
+}
+
+.detail-guides ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-guides a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--color-on-brand);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.detail-guides a:hover {
+  text-decoration: underline;
+}
+
+.detail-guides small {
+  color: color-mix(in oklch, var(--color-on-brand) 65%, transparent);
+  font-size: 0.68rem;
+  font-weight: 400;
 }
 
 .detail-missing {

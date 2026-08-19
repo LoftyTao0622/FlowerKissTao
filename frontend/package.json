@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run type-check && vite build",
+    "build": "npm run type-check && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json"
   },

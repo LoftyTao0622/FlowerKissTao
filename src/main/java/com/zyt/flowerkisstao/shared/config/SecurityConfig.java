@@ -8,9 +8,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,18 +27,21 @@ import java.util.Collections;
 /**
  * Spring Security 配置。
  *
- * <p>prePostEnabled 打开后，各模块接口用 {@code @PreAuthorize("hasAuthority(Perms.XXX)")} 控权。
+ * <p>{@code @EnableMethodSecurity} 默认就开了 prePostEnabled，各模块接口用
+ * {@code @PreAuthorize("hasAuthority(Perms.XXX)")} 控权。
  * 这里只负责放行公开路径，具体权限点不在此集中配置，避免和业务代码两头维护。
  */
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
+@EnableMethodSecurity
 public class SecurityConfig {
 
     /** 无需登录即可访问的路径 */
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/login",
             "/api/auth/register",
+            // 页面访问埋点对游客开放，只接受 path/pageType/referrer 三个安全字段
+            "/api/operation/visits",
     };
 
     /** 商品与知识内容对游客开放，仅限 GET */
@@ -83,21 +87,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors().and()
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // 纯 token 认证，不依赖 Cookie，CSRF 无从谈起
-                .csrf().disable()
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
-                .exceptionHandling()
-                    .authenticationEntryPoint(authErrorHandler)
-                    .accessDeniedHandler(authErrorHandler).and()
-                .authorizeRequests()
-                    // 预检请求不带 token，必须先放行
-                    .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .antMatchers(PUBLIC_ENDPOINTS).permitAll()
-                    .antMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
-                    // 静态资源与前端路由交给 Vue 处理
-                    .antMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
-                    .anyRequest().authenticated();
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authErrorHandler)
+                        .accessDeniedHandler(authErrorHandler))
+                .authorizeHttpRequests(auth -> auth
+                        // 预检请求不带 token，必须先放行
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
+                        // 静态资源与前端路由交给 Vue 处理
+                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
+                        .anyRequest().authenticated());
 
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -6,11 +6,13 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BrandMark from '@/shared/components/BrandMark.vue'
 import CartPopover from '@/shared/components/CartPopover.vue'
 import { useAuthStore } from '@/modules/user/stores/auth'
+import { useCareStore } from '@/modules/care/stores/care'
 import { Perms } from '@/shared/auth/perms'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const careStore = useCareStore()
 const isMenuOpen = ref(false)
 const menuTrigger = ref<HTMLButtonElement | null>(null)
 const searchTerm = ref(typeof route.query.q === 'string' ? route.query.q : '')
@@ -19,11 +21,34 @@ const navItems = [
   { label: '首页', to: { name: 'home' } },
   { label: '逛植物', to: { name: 'plant-catalog' } },
   { label: '智能推荐', to: { name: 'recommendation' } },
+  { label: '知识库', to: { name: 'knowledge' } },
   { label: '养护指南', to: { name: 'care-guide' } },
 ]
 
+/** 我的订单，登录才显示 */
+const isLoggedIn = computed(() => authStore.isLoggedIn)
+
 /** 有用户管理权限时才显示后台入口 */
 const canManageUsers = computed(() => authStore.can(Perms.USER_ACCOUNT_READ))
+
+/** 有订单管理权限（运营/管理员）时才显示订单管理入口 */
+const canManageOrders = computed(() => authStore.can(Perms.TRADE_ORDER_READ_ALL))
+
+/** 有文章编辑权限时才显示知识文章管理入口 */
+const canManageArticles = computed(() => authStore.can(Perms.KNOWLEDGE_ARTICLE_WRITE))
+
+/** 养护提醒未读数。登录状态一变就重新拉，免得换账号后显示上一个人的角标 */
+watch(
+  () => authStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) {
+      void careStore.loadUnreadCount()
+    } else {
+      careStore.reset()
+    }
+  },
+  { immediate: true },
+)
 
 const displayName = computed(() => {
   const value = authStore.displayName.trim()
@@ -145,11 +170,42 @@ onBeforeUnmount(() => {
       <div class="site-header__actions">
         <template v-if="authStore.isLoggedIn">
           <RouterLink
-            v-if="canManageUsers"
+            v-if="canManageUsers || canManageOrders || canManageArticles || authStore.can(Perms.OPERATION_DASHBOARD_READ)"
             class="text-action desktop-account"
-            :to="{ name: 'admin-users' }"
+            :to="{ name: 'admin-dashboard' }"
           >
             后台
+          </RouterLink>
+          <RouterLink class="text-action desktop-account" :to="{ name: 'orders' }">
+            我的订单
+          </RouterLink>
+          <RouterLink class="text-action desktop-account" :to="{ name: 'my-plants' }">
+            我的植物
+          </RouterLink>
+          <RouterLink
+            class="notify-bell"
+            :to="{ name: 'care-notifications' }"
+            :aria-label="careStore.unreadCount > 0
+              ? `养护提醒，${careStore.unreadCount} 条未读`
+              : '养护提醒'"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 3a5 5 0 0 0-5 5v3.5L5.5 15h13L17 11.5V8a5 5 0 0 0-5-5Z"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M10 18a2 2 0 0 0 4 0"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span v-if="careStore.unreadCount" class="notify-bell__count" aria-hidden="true">
+              {{ careStore.unreadCount > 99 ? '99+' : careStore.unreadCount }}
+            </span>
           </RouterLink>
           <span class="account-name" :title="authStore.displayName">
             你好，{{ displayName }}
@@ -196,6 +252,33 @@ onBeforeUnmount(() => {
           <nav class="mobile-nav" aria-label="移动端主导航">
             <RouterLink v-for="item in navItems" :key="item.label" :to="item.to">
               {{ item.label }}
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="isLoggedIn" :to="{ name: 'orders' }">
+              我的订单
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="isLoggedIn" :to="{ name: 'my-plants' }">
+              我的植物
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="isLoggedIn" :to="{ name: 'care-notifications' }">
+              养护提醒
+              <span v-if="careStore.unreadCount" class="mobile-nav__badge">
+                {{ careStore.unreadCount }}
+              </span>
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="authStore.can(Perms.OPERATION_DASHBOARD_READ)" :to="{ name: 'admin-dashboard' }">
+              运营看板
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="canManageOrders" :to="{ name: 'admin-orders' }">
+              订单管理
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="canManageArticles" :to="{ name: 'admin-knowledge' }">
+              文章管理
               <span aria-hidden="true">→</span>
             </RouterLink>
             <RouterLink v-if="canManageUsers" :to="{ name: 'admin-users' }">
@@ -408,6 +491,53 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 养护提醒铃铛，与购物车图标同一尺度 */
+.notify-bell {
+  position: relative;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: var(--color-brand);
+  border-radius: 50%;
+  text-decoration: none;
+  transition: background-color 180ms var(--ease-out);
+}
+
+.notify-bell:hover {
+  background: var(--color-brand-soft);
+}
+
+.notify-bell svg {
+  width: 22px;
+  height: 22px;
+}
+
+.notify-bell__count {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 1.05rem;
+  padding: 0 0.2rem;
+  background: var(--color-danger, #a8442f);
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+}
+
+.mobile-nav__badge {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  background: var(--color-danger, #a8442f);
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
 }
 
 .text-action {

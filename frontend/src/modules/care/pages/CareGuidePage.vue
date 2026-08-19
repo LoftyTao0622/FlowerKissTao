@@ -321,6 +321,17 @@ async function restoreTasks() {
               <el-icon aria-hidden="true"><WarningFilled /></el-icon>
               <p>{{ guide.warning }}</p>
             </div>
+
+            <!-- 四张静态卡片是知识库的"入门四课"，slug 与 id 一致，直接深链 -->
+            <RouterLink
+              class="guide-card__full"
+              :to="{
+                name: 'knowledge-detail',
+                params: { slug: guide.id === 'repotting' ? 'repotting' : guide.id },
+              }"
+            >
+              查看完整指南 →
+            </RouterLink>
           </article>
         </div>
       </div>
@@ -804,6 +815,19 @@ async function restoreTasks() {
   margin: 0;
   font-size: 0.73rem;
   line-height: 1.58;
+}
+
+.guide-card__full {
+  display: inline-block;
+  margin-top: var(--space-md);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.guide-card__full:hover {
+  text-decoration: underline;
 }
 
 .care-note__inner {

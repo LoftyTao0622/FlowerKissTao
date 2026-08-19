@@ -30,6 +30,8 @@ export const Perms = {
 
   OPERATION_BANNER_EDIT: 'operation:banner:edit',
   OPERATION_PAGE_ARRANGE: 'operation:page:arrange',
+  OPERATION_DASHBOARD_READ: 'operation:dashboard:read',
+  OPERATION_LOG_READ: 'operation:log:read',
 
   USER_PROFILE_READ_OWN: 'user:profile:read-own',
   USER_PROFILE_UPDATE_OWN: 'user:profile:update-own',

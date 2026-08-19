@@ -1,13 +1,29 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
 
 import { useCartStore } from '@/modules/trade/stores/cart'
+import { useAuthStore } from '@/modules/user/stores/auth'
 
 const cartStore = useCartStore()
-const { items, subtotal, totalCount } = storeToRefs(cartStore)
+const authStore = useAuthStore()
+const { items, totalAmount, totalCount, hasInvalid } = storeToRefs(cartStore)
 const isOpen = ref(false)
+
+// 购物车现在在后端，未登录时没有可读的车。登录状态一变就重新拉一次，
+// 免得用户登录后还要手动刷新才看得到自己的购物车
+watch(
+  () => authStore.isLoggedIn,
+  (authenticated) => {
+    if (authenticated) {
+      void cartStore.load()
+    } else {
+      cartStore.reset()
+    }
+  },
+  { immediate: true },
+)
 
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
@@ -59,47 +75,64 @@ function formatPrice(value: number) {
       </div>
 
       <div v-if="items.length" class="cart-panel__content">
+        <p v-if="hasInvalid" class="cart-panel__warn" role="status">
+          有商品已下架或库存不足，结算时会跳过它们。
+        </p>
+
         <ul class="cart-list">
-          <li v-for="item in items" :key="item.id" class="cart-item">
+          <li
+            v-for="item in items"
+            :key="item.skuId"
+            :class="['cart-item', { 'cart-item--invalid': item.invalidReason }]"
+          >
             <RouterLink
+              v-if="item.slug"
               class="cart-item__media"
-              :to="{ name: 'plant-detail', params: { plantId: item.id } }"
+              :to="{ name: 'plant-detail', params: { plantId: item.slug } }"
               @click="isOpen = false"
             >
-              <img v-if="item.image" :src="item.image" :alt="item.name" />
+              <img v-if="item.image" :src="item.image" :alt="item.imageAlt ?? item.speciesName" />
               <span v-else aria-hidden="true">植</span>
             </RouterLink>
+            <span v-else class="cart-item__media" aria-hidden="true">植</span>
+
             <div class="cart-item__body">
               <RouterLink
+                v-if="item.slug"
                 class="cart-item__name"
-                :to="{ name: 'plant-detail', params: { plantId: item.id } }"
+                :to="{ name: 'plant-detail', params: { plantId: item.slug } }"
                 @click="isOpen = false"
               >
-                {{ item.name }}
+                {{ item.speciesName }}
               </RouterLink>
-              <p v-if="item.subtitle">{{ item.subtitle }}</p>
+              <span v-else class="cart-item__name">{{ item.speciesName }}</span>
+
+              <p v-if="item.spec">{{ item.spec }}</p>
               <strong>{{ formatPrice(item.price) }}</strong>
-              <div class="quantity-control" :aria-label="`${item.name} 数量`">
+              <p v-if="item.invalidReason" class="cart-item__invalid">{{ item.invalidReason }}</p>
+
+              <div class="quantity-control" :aria-label="`${item.speciesName} 数量`">
                 <button
                   type="button"
-                  :aria-label="`减少一件 ${item.name}`"
-                  @click="cartStore.decrement(item.id)"
+                  :aria-label="`减少一件 ${item.speciesName}`"
+                  @click="cartStore.setQuantity(item.skuId, item.quantity - 1)"
                 >
                   −
                 </button>
                 <span aria-live="polite">{{ item.quantity }}</span>
                 <button
                   type="button"
-                  :aria-label="`增加一件 ${item.name}`"
-                  @click="cartStore.increment(item.id)"
+                  :disabled="item.quantity >= item.stock"
+                  :aria-label="`增加一件 ${item.speciesName}`"
+                  @click="cartStore.setQuantity(item.skuId, item.quantity + 1)"
                 >
                   +
                 </button>
                 <button
                   class="quantity-control__remove"
                   type="button"
-                  :aria-label="`从购物车移除 ${item.name}`"
-                  @click="cartStore.remove(item.id)"
+                  :aria-label="`从购物车移除 ${item.speciesName}`"
+                  @click="cartStore.remove(item.skuId)"
                 >
                   移除
                 </button>
@@ -110,15 +143,24 @@ function formatPrice(value: number) {
 
         <div class="cart-panel__total">
           <span>商品小计</span>
-          <strong>{{ formatPrice(subtotal) }}</strong>
+          <strong>{{ formatPrice(totalAmount) }}</strong>
         </div>
-        <RouterLink
-          class="pill-button cart-panel__continue"
-          :to="{ name: 'plant-catalog' }"
-          @click="isOpen = false"
-        >
-          继续选植物
-        </RouterLink>
+        <div class="cart-panel__actions">
+          <RouterLink
+            class="pill-button pill-button--primary"
+            :to="{ name: 'cart' }"
+            @click="isOpen = false"
+          >
+            去结算
+          </RouterLink>
+          <RouterLink
+            class="pill-button cart-panel__continue"
+            :to="{ name: 'plant-catalog' }"
+            @click="isOpen = false"
+          >
+            继续选植物
+          </RouterLink>
+        </div>
       </div>
 
       <div v-else class="cart-empty">
@@ -343,9 +385,39 @@ function formatPrice(value: number) {
   font-size: 1.1rem;
 }
 
+.cart-panel__actions {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.cart-panel__actions .pill-button--primary {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-on-dark, #fffdf7);
+}
+
 .cart-panel__continue {
   width: 100%;
-  margin-top: var(--space-sm);
+}
+
+.cart-panel__warn {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-brand-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-brand-deep);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.cart-item--invalid {
+  opacity: 0.65;
+}
+
+.cart-item__invalid {
+  margin: 0.15rem 0 0;
+  color: var(--color-danger, #a8442f);
+  font-size: 0.72rem;
 }
 
 .cart-empty {

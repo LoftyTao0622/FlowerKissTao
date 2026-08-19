@@ -6,13 +6,12 @@ import com.zyt.flowerkisstao.user.web.dto.LoginDTO;
 import com.zyt.flowerkisstao.user.web.dto.RegisterDTO;
 import com.zyt.flowerkisstao.user.web.vo.TokenVO;
 import com.zyt.flowerkisstao.user.web.vo.UserVO;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import javax.validation.Valid;
 
 /**
  * 认证接口。login 与 register 在 SecurityConfig 中放行。

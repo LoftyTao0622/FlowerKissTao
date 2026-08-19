@@ -4,6 +4,7 @@ const currentYear = new Date().getFullYear()
 const footerLinks = [
   { label: '逛植物', to: { name: 'plant-catalog' } },
   { label: '智能推荐', to: { name: 'recommendation' } },
+  { label: '知识库', to: { name: 'knowledge' } },
   { label: '养护指南', to: { name: 'care-guide' } },
 ]
 </script>
