@@ -1,6 +1,21 @@
 # 花吻陶 FlowerKissTao
 
-花吻陶是面向植物消费者与运营人员的全栈植物电商和养护系统。
+面向植物消费者与运营人员的全栈植物电商和养护系统。
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.0.1--SNAPSHOT-blue?style=flat-square" alt="version">
+  <img src="https://img.shields.io/badge/Java-17-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java 17">
+  <img src="https://img.shields.io/badge/Spring%20Boot-3.5.16-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot 3.5.16">
+  <img src="https://img.shields.io/badge/Maven-build-C71A36?style=flat-square&logo=apachemaven&logoColor=white" alt="Maven">
+  <img src="https://img.shields.io/badge/Vue-3.5.40-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3.5.40">
+  <img src="https://img.shields.io/badge/TypeScript-6.0.3-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript 6.0.3">
+  <img src="https://img.shields.io/badge/Vite-8.1.5-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite 8.1.5">
+  <img src="https://img.shields.io/badge/Element%20Plus-2.14.3-409EFF?style=flat-square" alt="Element Plus 2.14.3">
+  <img src="https://img.shields.io/badge/Pinia-4.0.2-FFD859?style=flat-square" alt="Pinia 4.0.2">
+  <img src="https://img.shields.io/badge/MySQL-required-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL">
+  <img src="https://img.shields.io/badge/Redis-required-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis">
+</p>
+
 用户可以浏览植物、获得个性化推荐、完成购物与订单流程，并在购买后管理植物档案和养护提醒。
 运营人员可以在后台管理商品、SKU、订单、知识文章、推荐规则、用户和运营日志。
 
