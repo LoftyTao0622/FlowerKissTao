@@ -1,7 +1,9 @@
 package com.zyt.flowerkisstao.trade.web.vo;
 
 import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -10,6 +12,8 @@ import java.util.List;
 /** 购物车整体。合计只统计可结算的条目，失效的不算钱 */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class CartVO implements Serializable {
 
     private static final long serialVersionUID = 1L;

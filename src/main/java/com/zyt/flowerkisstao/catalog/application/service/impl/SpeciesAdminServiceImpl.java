@@ -12,6 +12,8 @@ import com.zyt.flowerkisstao.catalog.web.dto.SpeciesSaveDTO;
 import com.zyt.flowerkisstao.catalog.web.vo.PlantVO;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +27,17 @@ public class SpeciesAdminServiceImpl implements SpeciesAdminService {
 
     private final CatalogSpeciesMapper speciesMapper;
     private final CatalogSkuMapper skuMapper;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
+    private final RedisKey redisKey;
 
-    public SpeciesAdminServiceImpl(CatalogSpeciesMapper speciesMapper, CatalogSkuMapper skuMapper) {
+    public SpeciesAdminServiceImpl(CatalogSpeciesMapper speciesMapper,
+                                   CatalogSkuMapper skuMapper,
+                                   AfterCommitCacheInvalidator cacheInvalidator,
+                                   RedisKey redisKey) {
         this.speciesMapper = speciesMapper;
         this.skuMapper = skuMapper;
+        this.cacheInvalidator = cacheInvalidator;
+        this.redisKey = redisKey;
     }
 
     @Override
@@ -72,12 +81,13 @@ public class SpeciesAdminServiceImpl implements SpeciesAdminService {
         applyDto(species, dto);
         species.setStatus(1);
         speciesMapper.insert(species);
+        cacheInvalidator.delete(redisKey.plantFacets(), redisKey.recommendCandidates());
         return species.getId();
     }
 
     @Override
     public void update(Long id, SpeciesSaveDTO dto) {
-        requireSpecies(id);
+        CatalogSpecies existing = requireSpecies(id);
         requireCodeAvailable(dto.getCode(), id);
         requireRangesValid(dto);
 
@@ -86,6 +96,8 @@ public class SpeciesAdminServiceImpl implements SpeciesAdminService {
         applyDto(species, dto);
         // status 由启停接口单独管，避免编辑表单顺手把品种停用了
         speciesMapper.updateById(species);
+        cacheInvalidator.delete(redisKey.plantDetail(existing.getCode()),
+                redisKey.plantDetail(dto.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
     }
 
     /**
@@ -115,6 +127,7 @@ public class SpeciesAdminServiceImpl implements SpeciesAdminService {
         speciesMapper.updateById(rename);
 
         speciesMapper.deleteById(id);
+        cacheInvalidator.delete(redisKey.plantDetail(existing.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
     }
 
     @Override
@@ -122,12 +135,13 @@ public class SpeciesAdminServiceImpl implements SpeciesAdminService {
         if (status == null || (status != 0 && status != 1)) {
             throw new BizException("status 只能是 0 或 1");
         }
-        requireSpecies(id);
+        CatalogSpecies existing = requireSpecies(id);
 
         CatalogSpecies update = new CatalogSpecies();
         update.setId(id);
         update.setStatus(status);
         speciesMapper.updateById(update);
+        cacheInvalidator.delete(redisKey.plantDetail(existing.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
     }
 
     private CatalogSpecies requireSpecies(Long id) {

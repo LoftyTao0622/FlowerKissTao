@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import BrandMark from '@/shared/components/BrandMark.vue'
 import { useAuthStore } from '@/modules/user/stores/auth'
@@ -8,6 +8,7 @@ import { Perms } from '@/shared/auth/perms'
 
 const authStore = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const collapsed = ref(false)
 
 const navGroups = computed(() => [
@@ -47,6 +48,12 @@ function can(permission: string) {
 
 function isActive(name: string) {
   return route.name === name || (typeof route.name === 'string' && route.name.startsWith(name + '-'))
+}
+
+async function logout() {
+  await authStore.logout()
+  // 清理本地登录态后主动离开后台，避免停留在已失去权限的页面。
+  void router.push({ name: 'home' })
 }
 </script>
 
@@ -102,7 +109,7 @@ function isActive(name: string) {
         </div>
         <div class="admin-topbar__actions">
           <span>{{ authStore.displayName }}</span>
-          <button type="button" @click="authStore.logout()">退出</button>
+          <button type="button" @click="logout">退出</button>
         </div>
       </header>
       <div class="admin-content">

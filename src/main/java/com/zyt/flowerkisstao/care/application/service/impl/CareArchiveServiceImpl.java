@@ -34,6 +34,7 @@ import com.zyt.flowerkisstao.trade.infrastructure.mapper.TradeOrderMapper;
 import com.zyt.flowerkisstao.user.domain.entity.UserSceneProfile;
 import com.zyt.flowerkisstao.user.infrastructure.mapper.UserSceneProfileMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -163,7 +164,12 @@ public class CareArchiveServiceImpl implements CareArchiveService {
             archive.setMissedCount(0);
             archive.setWaterFactor(CareArchive.FACTOR_BASE);
             archive.setStatus(CareArchive.STATUS_ACTIVE);
-            archiveMapper.insert(archive);
+            try {
+                archiveMapper.insert(archive);
+            } catch (DuplicateKeyException e) {
+                // 并发确认收货时另一事务已经为该订单和品种建档，按幂等成功处理。
+                continue;
+            }
 
             LocalDate anchor = adoptedAt.toLocalDate();
             generateTasks(archive, species, scene, anchor, anchor, anchor.plusDays(PLAN_WINDOW_DAYS));
@@ -214,8 +220,9 @@ public class CareArchiveServiceImpl implements CareArchiveService {
             task.setInstruction(plan.instruction());
             task.setDueDate(plan.dueDate());
             task.setStatus(CareTask.STATUS_PENDING);
-            taskMapper.insert(task);
-            inserted++;
+            if (taskMapper.insertIgnore(task) > 0) {
+                inserted++;
+            }
         }
         return inserted;
     }

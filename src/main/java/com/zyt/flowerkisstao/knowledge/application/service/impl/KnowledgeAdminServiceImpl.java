@@ -15,6 +15,8 @@ import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
 import com.zyt.flowerkisstao.shared.security.Perms;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,11 +31,17 @@ public class KnowledgeAdminServiceImpl implements KnowledgeAdminService {
 
     private final KnowledgeArticleMapper articleMapper;
     private final KnowledgeSearchMissMapper searchMissMapper;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
+    private final RedisKey redisKey;
 
     public KnowledgeAdminServiceImpl(KnowledgeArticleMapper articleMapper,
-                                     KnowledgeSearchMissMapper searchMissMapper) {
+                                     KnowledgeSearchMissMapper searchMissMapper,
+                                     AfterCommitCacheInvalidator cacheInvalidator,
+                                     RedisKey redisKey) {
         this.articleMapper = articleMapper;
         this.searchMissMapper = searchMissMapper;
+        this.cacheInvalidator = cacheInvalidator;
+        this.redisKey = redisKey;
     }
 
     @Override
@@ -75,13 +83,14 @@ public class KnowledgeAdminServiceImpl implements KnowledgeAdminService {
         article.setUsefulCount(0);
 
         articleMapper.insert(article);
+        cacheInvalidator.delete(redisKey.articleFacets());
         return article.getId();
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void update(Long id, ArticleSaveDTO dto) {
-        requireArticle(id);
+        KnowledgeArticle existing = requireArticle(id);
         requireSlugAvailable(dto.getSlug(), id);
 
         KnowledgeArticle update = new KnowledgeArticle();
@@ -89,6 +98,8 @@ public class KnowledgeAdminServiceImpl implements KnowledgeAdminService {
         applyDto(update, dto);
         // status 不在这里改，避免编辑表单绕过审核直接发布
         articleMapper.updateById(update);
+        cacheInvalidator.delete(redisKey.articleDetail(existing.getSlug()),
+                redisKey.articleDetail(dto.getSlug()), redisKey.articleFacets());
     }
 
     /**
@@ -108,6 +119,7 @@ public class KnowledgeAdminServiceImpl implements KnowledgeAdminService {
         articleMapper.updateById(rename);
 
         articleMapper.deleteById(id);
+        cacheInvalidator.delete(redisKey.articleDetail(existing.getSlug()), redisKey.articleFacets());
     }
 
     @Override
@@ -129,6 +141,7 @@ public class KnowledgeAdminServiceImpl implements KnowledgeAdminService {
             update.setPublishedAt(LocalDateTime.now());
         }
         articleMapper.updateById(update);
+        cacheInvalidator.delete(redisKey.articleDetail(article.getSlug()), redisKey.articleFacets());
     }
 
     @Override

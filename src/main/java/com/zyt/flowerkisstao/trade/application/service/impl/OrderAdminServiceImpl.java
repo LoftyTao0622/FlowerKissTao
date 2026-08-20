@@ -80,6 +80,9 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         update.setId(id);
         update.setStatus(target.code());
         update.setShippedAt(LocalDateTime.now());
+        if (orderMapper.markStatus(id, order.getStatus(), target.code()) == 0) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID, "订单状态已变化，请刷新后重试");
+        }
         orderMapper.updateById(update);
         operationLogService.record("trade", "SHIP", "trade_order", id,
                 Map.of("status", order.getStatus()), Map.of("status", target.code()));
@@ -93,6 +96,9 @@ public class OrderAdminServiceImpl implements OrderAdminService {
                 OrderAction.APPROVE_AFTER_SALE);
 
         // 退款成立，货退回来了，库存要还上。与用户取消订单共用同一段逻辑
+        if (orderMapper.markStatus(id, order.getStatus(), target.code()) == 0) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID, "订单状态已变化，请刷新后重试");
+        }
         stockSupport.restore(id);
 
         TradeOrder update = new TradeOrder();
@@ -111,6 +117,10 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         // 目标状态由 prevStatus 决定——从待发货申请的退回待发货，从已完成申请的退回已完成
         OrderStatus target = OrderServiceImpl.requireTransition(order,
                 OrderAction.REJECT_AFTER_SALE);
+
+        if (orderMapper.markStatus(id, order.getStatus(), target.code()) == 0) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID, "订单状态已变化，请刷新后重试");
+        }
 
         TradeOrder update = new TradeOrder();
         update.setId(id);

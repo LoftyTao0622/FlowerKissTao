@@ -35,6 +35,12 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Redis 只承担缓存、限流与分布式锁，MySQL 仍是业务事实源 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- JWT 签发与校验，jjwt 拆成三个包：api 编译期，impl 与 jackson 运行期 -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -130,7 +136,7 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.zyt.flowerkisstao.FlowerKissTaoApplication</mainClass>
-                    <skip>true</skip>
+                    <skip>false</skip>
                 </configuration>
                 <executions>
                     <execution>

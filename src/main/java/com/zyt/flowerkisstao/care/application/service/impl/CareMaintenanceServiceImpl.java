@@ -59,7 +59,10 @@ public class CareMaintenanceServiceImpl implements CareMaintenanceService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public String runDailyMaintenance() {
+        // 维护批次由外部代理开启统一事务，下面的自调用也会加入这个事务，
+        // 避免补任务、逾期标记和提醒发送只提交了一半。
         // 顺序有讲究：先标逾期再发提醒，否则今天刚过期的任务不会出现在提醒里；
         // 先补任务再发提醒，否则窗口边缘新生成的任务会漏掉当天的提醒
         int topped = topUpTasks();
@@ -107,10 +110,10 @@ public class CareMaintenanceServiceImpl implements CareMaintenanceService {
         }
 
         for (CareTask task : overdue) {
-            CareTask update = new CareTask();
-            update.setId(task.getId());
-            update.setStatus(CareTask.STATUS_OVERDUE);
-            taskMapper.updateById(update);
+            // 只有条件更新抢到这条任务的实例才能继续累计遗漏和发逾期提醒。
+            if (taskMapper.markOverdue(task.getId()) == 0) {
+                continue;
+            }
 
             CareArchive archive = archiveMapper.selectById(task.getArchiveId());
             if (archive == null || archive.getStatus() == null

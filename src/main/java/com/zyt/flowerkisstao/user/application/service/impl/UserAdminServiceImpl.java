@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import com.zyt.flowerkisstao.user.application.service.UserAdminService;
 import com.zyt.flowerkisstao.user.domain.entity.SysUser;
 import com.zyt.flowerkisstao.user.domain.entity.SysUserRole;
@@ -24,13 +26,19 @@ public class UserAdminServiceImpl implements UserAdminService {
     private final SysUserMapper userMapper;
     private final SysRoleMapper roleMapper;
     private final SysUserRoleMapper userRoleMapper;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
+    private final RedisKey redisKey;
 
     public UserAdminServiceImpl(SysUserMapper userMapper,
                                 SysRoleMapper roleMapper,
-                                SysUserRoleMapper userRoleMapper) {
+                                SysUserRoleMapper userRoleMapper,
+                                AfterCommitCacheInvalidator cacheInvalidator,
+                                RedisKey redisKey) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
+        this.cacheInvalidator = cacheInvalidator;
+        this.redisKey = redisKey;
     }
 
     @Override
@@ -74,6 +82,7 @@ public class UserAdminServiceImpl implements UserAdminService {
         update.setId(userId);
         update.setStatus(status);
         userMapper.updateById(update);
+        cacheInvalidator.delete(redisKey.authUser(userId));
     }
 
     @Override
@@ -101,5 +110,6 @@ public class UserAdminServiceImpl implements UserAdminService {
             roleIds.stream().distinct()
                     .forEach(roleId -> userRoleMapper.insert(new SysUserRole(userId, roleId)));
         }
+        cacheInvalidator.delete(redisKey.authUser(userId));
     }
 }

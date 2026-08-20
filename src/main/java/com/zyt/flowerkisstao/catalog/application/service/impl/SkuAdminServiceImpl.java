@@ -12,6 +12,8 @@ import com.zyt.flowerkisstao.catalog.web.dto.SkuSaveDTO;
 import com.zyt.flowerkisstao.catalog.web.vo.SkuVO;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,17 @@ public class SkuAdminServiceImpl implements SkuAdminService {
 
     private final CatalogSkuMapper skuMapper;
     private final CatalogSpeciesMapper speciesMapper;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
+    private final RedisKey redisKey;
 
-    public SkuAdminServiceImpl(CatalogSkuMapper skuMapper, CatalogSpeciesMapper speciesMapper) {
+    public SkuAdminServiceImpl(CatalogSkuMapper skuMapper,
+                               CatalogSpeciesMapper speciesMapper,
+                               AfterCommitCacheInvalidator cacheInvalidator,
+                               RedisKey redisKey) {
         this.skuMapper = skuMapper;
         this.speciesMapper = speciesMapper;
+        this.cacheInvalidator = cacheInvalidator;
+        this.redisKey = redisKey;
     }
 
     @Override
@@ -53,20 +62,22 @@ public class SkuAdminServiceImpl implements SkuAdminService {
 
     @Override
     public Long create(SkuSaveDTO dto) {
-        requireSpeciesExists(dto.getSpeciesId());
+        CatalogSpecies species = requireSpeciesExists(dto.getSpeciesId());
         requireSkuCodeAvailable(dto.getSkuCode(), null);
 
         CatalogSku sku = new CatalogSku();
         applyDto(sku, dto);
         sku.setStatus(1);
         skuMapper.insert(sku);
+        cacheInvalidator.delete(redisKey.plantDetail(species.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
         return sku.getId();
     }
 
     @Override
     public void update(Long id, SkuSaveDTO dto) {
-        requireSku(id);
-        requireSpeciesExists(dto.getSpeciesId());
+        CatalogSku existing = requireSku(id);
+        CatalogSpecies oldSpecies = requireSpeciesExists(existing.getSpeciesId());
+        CatalogSpecies newSpecies = requireSpeciesExists(dto.getSpeciesId());
         requireSkuCodeAvailable(dto.getSkuCode(), id);
 
         CatalogSku sku = new CatalogSku();
@@ -74,6 +85,8 @@ public class SkuAdminServiceImpl implements SkuAdminService {
         applyDto(sku, dto);
         // status 由上下架接口单独管，避免编辑表单顺手把商品下架了
         skuMapper.updateById(sku);
+        cacheInvalidator.delete(redisKey.plantDetail(oldSpecies.getCode()),
+                redisKey.plantDetail(newSpecies.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
     }
 
     /**
@@ -86,6 +99,7 @@ public class SkuAdminServiceImpl implements SkuAdminService {
     @Transactional(rollbackFor = Exception.class)
     public void remove(Long id) {
         CatalogSku existing = requireSku(id);
+        CatalogSpecies species = requireSpeciesExists(existing.getSpeciesId());
 
         CatalogSku rename = new CatalogSku();
         rename.setId(id);
@@ -93,6 +107,7 @@ public class SkuAdminServiceImpl implements SkuAdminService {
         skuMapper.updateById(rename);
 
         skuMapper.deleteById(id);
+        cacheInvalidator.delete(redisKey.plantDetail(species.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
     }
 
     @Override
@@ -100,12 +115,14 @@ public class SkuAdminServiceImpl implements SkuAdminService {
         if (status == null || (status != 0 && status != 1)) {
             throw new BizException("status 只能是 0 或 1");
         }
-        requireSku(id);
+        CatalogSku existing = requireSku(id);
+        CatalogSpecies species = requireSpeciesExists(existing.getSpeciesId());
 
         CatalogSku update = new CatalogSku();
         update.setId(id);
         update.setStatus(status);
         skuMapper.updateById(update);
+        cacheInvalidator.delete(redisKey.plantDetail(species.getCode()), redisKey.plantFacets(), redisKey.recommendCandidates());
     }
 
     private CatalogSku requireSku(Long id) {
@@ -120,11 +137,12 @@ public class SkuAdminServiceImpl implements SkuAdminService {
      * catalog_sku 上没有到 catalog_species 的外键（品种走逻辑删除，外键拦不住
      * deleted=1 的脏引用），引用完整性只能在这里把住。
      */
-    private void requireSpeciesExists(Long speciesId) {
+    private CatalogSpecies requireSpeciesExists(Long speciesId) {
         CatalogSpecies species = speciesMapper.selectById(speciesId);
         if (species == null) {
             throw new BizException(ErrorCode.PLANT_NOT_FOUND, "所属品种不存在：" + speciesId);
         }
+        return species;
     }
 
     private void requireSkuCodeAvailable(String skuCode, Long excludeId) {

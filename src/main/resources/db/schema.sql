@@ -511,6 +511,8 @@ CREATE TABLE `care_archive` (
   `created_at`            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  -- 同一订单同一品种只建立一份养护档案；同订单购买不同品种仍可分别建档
+  UNIQUE KEY `uk_archive_order_species` (`order_id`, `species_id`),
   KEY `idx_archive_user_status` (`user_id`, `status`),
   -- 每日定时任务要按品种批量补任务，这个索引避免全表扫
   KEY `idx_archive_species` (`species_id`)
@@ -539,6 +541,8 @@ CREATE TABLE `care_task` (
   `note`          VARCHAR(255)     NULL              COMMENT '完成时附的文字记录',
   `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  -- 任务生成允许多实例并发，但同一档案同一类型同一天只能有一条
+  UNIQUE KEY `uk_task_archive_type_due` (`archive_id`, `task_type`, `due_date`),
   -- 日历视图按档案 + 日期范围查，这个索引直接覆盖
   KEY `idx_task_archive_due` (`archive_id`, `due_date`),
   -- 每日定时任务要捞"今天到期的"与"已逾期的"，按日期 + 状态查
@@ -588,6 +592,8 @@ CREATE TABLE `care_notification` (
   `read_flag`   TINYINT      NOT NULL DEFAULT 0    COMMENT '1 已读',
   `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  -- 同一任务的同类提醒只发送一次；档案建立等 task_id 为空的通知不受此约束影响
+  UNIQUE KEY `uk_notification_task_type` (`task_id`, `type`),
   -- 铃铛要数未读、列表要未读优先，这个索引两件事都覆盖
   KEY `idx_notification_user_read` (`user_id`, `read_flag`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内提醒';

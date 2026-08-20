@@ -12,8 +12,11 @@ import com.zyt.flowerkisstao.catalog.web.vo.PlantFacetsVO;
 import com.zyt.flowerkisstao.catalog.web.vo.PlantVO;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
+import com.zyt.flowerkisstao.shared.redis.RedisCacheService;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +27,17 @@ public class PlantQueryServiceImpl implements PlantQueryService {
 
     private final CatalogSpeciesMapper speciesMapper;
     private final CatalogSkuMapper skuMapper;
+    private final RedisCacheService cacheService;
+    private final RedisKey redisKey;
 
-    public PlantQueryServiceImpl(CatalogSpeciesMapper speciesMapper, CatalogSkuMapper skuMapper) {
+    public PlantQueryServiceImpl(CatalogSpeciesMapper speciesMapper,
+                                 CatalogSkuMapper skuMapper,
+                                 RedisCacheService cacheService,
+                                 RedisKey redisKey) {
         this.speciesMapper = speciesMapper;
         this.skuMapper = skuMapper;
+        this.cacheService = cacheService;
+        this.redisKey = redisKey;
     }
 
     @Override
@@ -76,6 +86,11 @@ public class PlantQueryServiceImpl implements PlantQueryService {
 
     @Override
     public PlantVO getBySlug(String slug) {
+        String cacheKey = redisKey.plantDetail(slug);
+        PlantVO cached = cacheService.get(cacheKey, PlantVO.class).orElse(null);
+        if (cached != null) {
+            return cached;
+        }
         CatalogSpecies species = speciesMapper.selectOne(Wrappers.<CatalogSpecies>lambdaQuery()
                 .eq(CatalogSpecies::getCode, slug)
                 .eq(CatalogSpecies::getStatus, 1));
@@ -89,15 +104,24 @@ public class PlantQueryServiceImpl implements PlantQueryService {
             // 品种还在但 SKU 全部下架，对顾客而言与下架无异
             throw new BizException(ErrorCode.PLANT_NOT_FOUND, "植物不存在或已下架");
         }
-        return PlantConverter.toVO(species, skus);
+        PlantVO result = PlantConverter.toVO(species, skus);
+        cacheService.set(cacheKey, result, Duration.ofSeconds(300));
+        return result;
     }
 
     @Override
     public PlantFacetsVO facets() {
-        return PlantFacetsVO.builder()
+        String cacheKey = redisKey.plantFacets();
+        PlantFacetsVO cached = cacheService.get(cacheKey, PlantFacetsVO.class).orElse(null);
+        if (cached != null) {
+            return cached;
+        }
+        PlantFacetsVO result = PlantFacetsVO.builder()
                 .categories(speciesMapper.selectDistinctCategories())
                 .lights(speciesMapper.selectDistinctLights())
                 .build();
+        cacheService.set(cacheKey, result, Duration.ofMinutes(5));
+        return result;
     }
 
     /**

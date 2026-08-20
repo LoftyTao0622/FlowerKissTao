@@ -8,6 +8,14 @@ spring:
     url: jdbc:mysql://127.0.0.1:3306/plant?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:123456}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6386}
+      password: ${REDIS_PASSWORD:123456}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:1s}
 mybatis-plus:
   # 实体扫描包，用于日志与类型别名
   type-aliases-package: com.zyt.flowerkisstao.**.domain.entity
@@ -22,6 +30,17 @@ mybatis-plus:
       # 主键用数据库自增，与 schema.sql 的 AUTO_INCREMENT 对应
       id-type: auto
 app:
+  redis:
+    enabled: ${REDIS_ENABLED:true}
+    cache-enabled: ${REDIS_CACHE_ENABLED:true}
+    key-prefix: ${REDIS_KEY_PREFIX:flowerkisstao:v1}
+    ttl-jitter-seconds: ${REDIS_TTL_JITTER_SECONDS:15}
+    rate-limit-enabled: ${REDIS_RATE_LIMIT_ENABLED:true}
+    login-limit: ${REDIS_LOGIN_LIMIT:10}
+    register-limit: ${REDIS_REGISTER_LIMIT:5}
+    search-limit: ${REDIS_SEARCH_LIMIT:60}
+    recommendation-limit: ${REDIS_RECOMMENDATION_LIMIT:10}
+    payment-limit: ${REDIS_PAYMENT_LIMIT:10}
   jwt:
     # 生产环境必须通过环境变量注入，默认值仅供本地开发
     secret: ${JWT_SECRET:flowerkisstao-local-dev-secret-key-please-change-in-production}

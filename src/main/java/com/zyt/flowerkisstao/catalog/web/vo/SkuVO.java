@@ -2,6 +2,8 @@ package com.zyt.flowerkisstao.catalog.web.vo;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -13,6 +15,8 @@ import java.math.BigDecimal;
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SkuVO implements Serializable {
 
     private static final long serialVersionUID = 1L;

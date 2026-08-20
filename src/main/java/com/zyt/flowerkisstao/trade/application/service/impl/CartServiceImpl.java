@@ -7,6 +7,9 @@ import com.zyt.flowerkisstao.catalog.infrastructure.mapper.CatalogSkuMapper;
 import com.zyt.flowerkisstao.catalog.infrastructure.mapper.CatalogSpeciesMapper;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisCacheService;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
 import com.zyt.flowerkisstao.trade.application.service.CartService;
 import com.zyt.flowerkisstao.trade.domain.entity.TradeCart;
@@ -18,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,28 +38,48 @@ import java.util.stream.Collectors;
 @Service
 public class CartServiceImpl implements CartService {
 
+    private static final Duration CART_CACHE_TTL = Duration.ofSeconds(45);
+
     private final TradeCartMapper cartMapper;
     private final CatalogSkuMapper skuMapper;
     private final CatalogSpeciesMapper speciesMapper;
+    private final RedisCacheService cacheService;
+    private final RedisKey redisKey;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
 
     public CartServiceImpl(TradeCartMapper cartMapper,
                            CatalogSkuMapper skuMapper,
-                           CatalogSpeciesMapper speciesMapper) {
+                           CatalogSpeciesMapper speciesMapper,
+                           RedisCacheService cacheService,
+                           RedisKey redisKey,
+                           AfterCommitCacheInvalidator cacheInvalidator) {
         this.cartMapper = cartMapper;
         this.skuMapper = skuMapper;
         this.speciesMapper = speciesMapper;
+        this.cacheService = cacheService;
+        this.redisKey = redisKey;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     @Override
     public CartVO listMine() {
+        Long userId = CurrentUser.requireUserId();
+        String cacheKey = redisKey.cart(userId);
+        var cached = cacheService.get(cacheKey, CartVO.class);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
         List<TradeCart> rows = cartMapper.selectList(Wrappers.<TradeCart>lambdaQuery()
-                .eq(TradeCart::getUserId, CurrentUser.requireUserId())
+                .eq(TradeCart::getUserId, userId)
                 .orderByDesc(TradeCart::getUpdatedAt));
         if (rows.isEmpty()) {
-            return CartVO.builder()
+            CartVO empty = CartVO.builder()
                     .items(List.of()).totalCount(0)
                     .totalAmount(BigDecimal.ZERO).hasInvalid(false)
                     .build();
+            cacheService.set(cacheKey, empty, CART_CACHE_TTL);
+            return empty;
         }
 
         // 两次批量查而不是逐条查：条目多时逐条查就是典型的 N+1。
@@ -89,12 +113,14 @@ public class CartServiceImpl implements CartService {
             }
         }
 
-        return CartVO.builder()
+        CartVO result = CartVO.builder()
                 .items(items)
                 .totalCount(totalCount)
                 .totalAmount(totalAmount)
                 .hasInvalid(hasInvalid)
                 .build();
+        cacheService.set(cacheKey, result, CART_CACHE_TTL);
+        return result;
     }
 
     @Override
@@ -130,6 +156,7 @@ public class CartServiceImpl implements CartService {
             update.setQuantity(target);
             cartMapper.updateById(update);
         }
+        invalidate(userId);
     }
 
     @Override
@@ -160,21 +187,26 @@ public class CartServiceImpl implements CartService {
         update.setId(existing.getId());
         update.setQuantity(target);
         cartMapper.updateById(update);
+        invalidate(userId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void remove(Long skuId) {
+        Long userId = CurrentUser.requireUserId();
         cartMapper.delete(Wrappers.<TradeCart>lambdaQuery()
-                .eq(TradeCart::getUserId, CurrentUser.requireUserId())
+                .eq(TradeCart::getUserId, userId)
                 .eq(TradeCart::getSkuId, skuId));
+        invalidate(userId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void clear() {
+        Long userId = CurrentUser.requireUserId();
         cartMapper.delete(Wrappers.<TradeCart>lambdaQuery()
-                .eq(TradeCart::getUserId, CurrentUser.requireUserId()));
+                .eq(TradeCart::getUserId, userId));
+        invalidate(userId);
     }
 
     @Override
@@ -186,6 +218,11 @@ public class CartServiceImpl implements CartService {
         cartMapper.delete(Wrappers.<TradeCart>lambdaQuery()
                 .eq(TradeCart::getUserId, userId)
                 .in(TradeCart::getSkuId, skuIds));
+        invalidate(userId);
+    }
+
+    private void invalidate(Long userId) {
+        cacheInvalidator.delete(redisKey.cart(userId));
     }
 
     // ================================================================

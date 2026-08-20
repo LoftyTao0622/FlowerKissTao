@@ -10,6 +10,7 @@ import com.zyt.flowerkisstao.recommendation.application.service.WeightConfigServ
 import com.zyt.flowerkisstao.recommendation.domain.entity.RecResult;
 import com.zyt.flowerkisstao.recommendation.domain.entity.RecResultItem;
 import com.zyt.flowerkisstao.recommendation.domain.model.PlantCandidate;
+import com.zyt.flowerkisstao.recommendation.domain.model.RecommendationCandidateIds;
 import com.zyt.flowerkisstao.recommendation.domain.model.RecommendationOutcome;
 import com.zyt.flowerkisstao.recommendation.domain.model.ScoredPlant;
 import com.zyt.flowerkisstao.recommendation.domain.model.WeightSet;
@@ -20,6 +21,8 @@ import com.zyt.flowerkisstao.recommendation.web.vo.RecommendationVO;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
+import com.zyt.flowerkisstao.shared.redis.RedisCacheService;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import com.zyt.flowerkisstao.user.domain.entity.UserSceneProfile;
 import com.zyt.flowerkisstao.user.infrastructure.mapper.UserSceneProfileMapper;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.time.Duration;
 
 /**
  * 推荐的编排层：读画像 → 读候选 → 调引擎 → 存快照 → 拼展示对象。
@@ -48,19 +52,25 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final RecResultMapper resultMapper;
     private final RecResultItemMapper itemMapper;
     private final WeightConfigService weightConfigService;
+    private final RedisCacheService cacheService;
+    private final RedisKey redisKey;
 
     public RecommendationServiceImpl(UserSceneProfileMapper profileMapper,
                                      CatalogSpeciesMapper speciesMapper,
                                      CatalogSkuMapper skuMapper,
                                      RecResultMapper resultMapper,
                                      RecResultItemMapper itemMapper,
-                                     WeightConfigService weightConfigService) {
+                                     WeightConfigService weightConfigService,
+                                     RedisCacheService cacheService,
+                                     RedisKey redisKey) {
         this.profileMapper = profileMapper;
         this.speciesMapper = speciesMapper;
         this.skuMapper = skuMapper;
         this.resultMapper = resultMapper;
         this.itemMapper = itemMapper;
         this.weightConfigService = weightConfigService;
+        this.cacheService = cacheService;
+        this.redisKey = redisKey;
     }
 
     @Override
@@ -155,10 +165,27 @@ public class RecommendationServiceImpl implements RecommendationService {
      * <p>无在售 SKU 的品种不进候选——推荐一株买不到的植物没有意义。
      */
     private List<PlantCandidate> loadCandidates() {
-        List<CatalogSpecies> speciesList = speciesMapper.selectList(
-                Wrappers.<CatalogSpecies>lambdaQuery().eq(CatalogSpecies::getStatus, 1));
-        if (speciesList.isEmpty()) {
+        RecommendationCandidateIds cachedIds = cacheService.get(redisKey.recommendCandidates(),
+                RecommendationCandidateIds.class).orElse(null);
+        if (cachedIds != null && cachedIds.speciesIds().isEmpty()) {
             return List.of();
+        }
+        List<CatalogSpecies> speciesList = cachedIds == null
+                ? speciesMapper.selectList(Wrappers.<CatalogSpecies>lambdaQuery().eq(CatalogSpecies::getStatus, 1))
+                : speciesMapper.selectBatchIds(cachedIds.speciesIds());
+        speciesList = speciesList.stream().filter(s -> Integer.valueOf(1).equals(s.getStatus())).toList();
+        if (speciesList.isEmpty()) {
+            if (cachedIds == null) {
+                cacheService.set(redisKey.recommendCandidates(), new RecommendationCandidateIds(List.of()),
+                        Duration.ofMinutes(1));
+            }
+            return List.of();
+        }
+
+        if (cachedIds == null) {
+            cacheService.set(redisKey.recommendCandidates(),
+                    new RecommendationCandidateIds(speciesList.stream().map(CatalogSpecies::getId).toList()),
+                    Duration.ofMinutes(5));
         }
 
         List<Long> speciesIds = speciesList.stream().map(CatalogSpecies::getId).toList();

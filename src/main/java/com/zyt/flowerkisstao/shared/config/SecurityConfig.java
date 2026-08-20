@@ -2,6 +2,7 @@ package com.zyt.flowerkisstao.shared.config;
 
 import com.zyt.flowerkisstao.shared.security.AppUserDetailsService;
 import com.zyt.flowerkisstao.shared.security.JwtAuthenticationFilter;
+import com.zyt.flowerkisstao.shared.security.RedisRateLimitFilter;
 import com.zyt.flowerkisstao.shared.security.RestAuthErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,13 +53,16 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RedisRateLimitFilter redisRateLimitFilter;
     private final RestAuthErrorHandler authErrorHandler;
     private final AppUserDetailsService userDetailsService;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          RedisRateLimitFilter redisRateLimitFilter,
                           RestAuthErrorHandler authErrorHandler,
                           AppUserDetailsService userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.redisRateLimitFilter = redisRateLimitFilter;
         this.authErrorHandler = authErrorHandler;
         this.userDetailsService = userDetailsService;
     }
@@ -105,6 +109,7 @@ public class SecurityConfig {
 
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(redisRateLimitFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 

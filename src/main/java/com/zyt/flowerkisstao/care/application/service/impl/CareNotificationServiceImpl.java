@@ -74,6 +74,6 @@ public class CareNotificationServiceImpl implements CareNotificationService {
         notification.setArchiveId(archiveId);
         notification.setTaskId(taskId);
         notification.setReadFlag(0);
-        notificationMapper.insert(notification);
+        notificationMapper.insertIgnore(notification);
     }
 }

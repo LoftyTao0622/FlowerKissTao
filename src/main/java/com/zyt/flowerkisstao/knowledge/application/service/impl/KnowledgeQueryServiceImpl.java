@@ -25,10 +25,13 @@ import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
 import com.zyt.flowerkisstao.shared.security.AppUserDetails;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
+import com.zyt.flowerkisstao.shared.redis.RedisCacheService;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -55,19 +58,25 @@ public class KnowledgeQueryServiceImpl implements KnowledgeQueryService {
     private final CareArchiveMapper careArchiveMapper;
     private final CareTaskMapper careTaskMapper;
     private final CatalogSpeciesMapper speciesMapper;
+    private final RedisCacheService cacheService;
+    private final RedisKey redisKey;
 
     public KnowledgeQueryServiceImpl(KnowledgeArticleMapper articleMapper,
                                      KnowledgeFeedbackMapper feedbackMapper,
                                      KnowledgeSearchMissMapper searchMissMapper,
                                      CareArchiveMapper careArchiveMapper,
                                      CareTaskMapper careTaskMapper,
-                                     CatalogSpeciesMapper speciesMapper) {
+                                     CatalogSpeciesMapper speciesMapper,
+                                     RedisCacheService cacheService,
+                                     RedisKey redisKey) {
         this.articleMapper = articleMapper;
         this.feedbackMapper = feedbackMapper;
         this.searchMissMapper = searchMissMapper;
         this.careArchiveMapper = careArchiveMapper;
         this.careTaskMapper = careTaskMapper;
         this.speciesMapper = speciesMapper;
+        this.cacheService = cacheService;
+        this.redisKey = redisKey;
     }
 
     // ================================================================
@@ -152,28 +161,40 @@ public class KnowledgeQueryServiceImpl implements KnowledgeQueryService {
 
     @Override
     public ArticleVO getBySlug(String slug) {
-        KnowledgeArticle article = articleMapper.selectOne(Wrappers.<KnowledgeArticle>lambdaQuery()
-                .eq(KnowledgeArticle::getSlug, slug)
-                .eq(KnowledgeArticle::getStatus, ArticleStatus.PUBLISHED.code())
-                .last("LIMIT 1"));
+        String cacheKey = redisKey.articleDetail(slug);
+        ArticleVO cached = cacheService.get(cacheKey, ArticleVO.class).orElse(null);
+        KnowledgeArticle article = cached == null ? articleMapper.selectOne(
+                Wrappers.<KnowledgeArticle>lambdaQuery()
+                        .eq(KnowledgeArticle::getSlug, slug)
+                        .eq(KnowledgeArticle::getStatus, ArticleStatus.PUBLISHED.code())
+                        .last("LIMIT 1")) : null;
         // 草稿、待审、已下架与压根不存在，对外是同一句话——不泄露"这篇曾经存在"
-        if (article == null) {
+        if (cached == null && article == null) {
             throw new BizException(ErrorCode.ARTICLE_NOT_FOUND, "文章不存在或已下架");
         }
 
-        // 浏览数用 SQL 自增，不读出来加一再写回：详情页并发最高，后者会丢计数
-        articleMapper.incrementViewCount(article.getId());
-        article.setViewCount(safe(article.getViewCount()) + 1);
+        // 即使命中缓存也保留数据库自增，浏览量是每次请求的副作用
+        Long articleId = cached == null ? article.getId() : cached.getId();
+        articleMapper.incrementViewCount(articleId);
 
         Long userId = currentUserIdOrNull();
         boolean marked = false;
         boolean favorited = false;
         if (userId != null) {
-            Set<String> types = feedbackTypesOf(userId, article.getId());
+            Set<String> types = feedbackTypesOf(userId, articleId);
             marked = types.contains(KnowledgeFeedback.TYPE_USEFUL);
             favorited = types.contains(KnowledgeFeedback.TYPE_FAVORITE);
         }
-        return KnowledgeConverter.toDetail(article, marked, favorited);
+        ArticleVO result = cached == null
+                ? KnowledgeConverter.toDetail(article, marked, favorited)
+                : cached;
+        result.setViewCount(cached == null ? safe(article.getViewCount()) + 1 : safe(cached.getViewCount()) + 1);
+        result.setMarked(marked);
+        result.setFavorited(favorited);
+        if (cached == null) {
+            cacheService.set(cacheKey, result, Duration.ofSeconds(300));
+        }
+        return result;
     }
 
     // ================================================================
@@ -182,6 +203,11 @@ public class KnowledgeQueryServiceImpl implements KnowledgeQueryService {
 
     @Override
     public ArticleFacetsVO facets() {
+        String cacheKey = redisKey.articleFacets();
+        ArticleFacetsVO cached = cacheService.get(cacheKey, ArticleFacetsVO.class).orElse(null);
+        if (cached != null) {
+            return cached;
+        }
         List<ArticleFacetsVO.Option> categories = articleMapper.selectDistinctCategories().stream()
                 .map(code -> new ArticleFacetsVO.Option(code, ArticleCategory.labelOf(code)))
                 .toList();
@@ -195,12 +221,14 @@ public class KnowledgeQueryServiceImpl implements KnowledgeQueryService {
                 .map(code -> new ArticleFacetsVO.Option(code, KnowledgeConverter.seasonLabel(code)))
                 .toList();
 
-        return ArticleFacetsVO.builder()
+        ArticleFacetsVO result = ArticleFacetsVO.builder()
                 .categories(categories)
                 .difficulties(difficulties)
                 .seasons(seasons)
                 .tags(articleMapper.selectDistinctTags())
                 .build();
+        cacheService.set(cacheKey, result, Duration.ofMinutes(5));
+        return result;
     }
 
     // ================================================================

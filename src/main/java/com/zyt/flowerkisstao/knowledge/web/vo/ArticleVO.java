@@ -3,6 +3,8 @@ package com.zyt.flowerkisstao.knowledge.web.vo;
 import com.zyt.flowerkisstao.knowledge.domain.entity.ArticleStep;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -14,6 +16,8 @@ import java.util.List;
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ArticleVO implements Serializable {
 
     private static final long serialVersionUID = 1L;

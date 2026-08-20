@@ -10,6 +10,8 @@ import com.zyt.flowerkisstao.knowledge.web.vo.ArticleVO;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,11 +23,17 @@ public class KnowledgeFeedbackServiceImpl implements KnowledgeFeedbackService {
 
     private final KnowledgeFeedbackMapper feedbackMapper;
     private final KnowledgeArticleMapper articleMapper;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
+    private final RedisKey redisKey;
 
     public KnowledgeFeedbackServiceImpl(KnowledgeFeedbackMapper feedbackMapper,
-                                        KnowledgeArticleMapper articleMapper) {
+                                        KnowledgeArticleMapper articleMapper,
+                                        AfterCommitCacheInvalidator cacheInvalidator,
+                                        RedisKey redisKey) {
         this.feedbackMapper = feedbackMapper;
         this.articleMapper = articleMapper;
+        this.cacheInvalidator = cacheInvalidator;
+        this.redisKey = redisKey;
     }
 
     /**
@@ -63,6 +71,7 @@ public class KnowledgeFeedbackServiceImpl implements KnowledgeFeedbackService {
             if (countsOnArticle) {
                 articleMapper.addUsefulCount(articleId, -1);
             }
+            invalidateArticle(articleId);
             return false;
         }
 
@@ -80,6 +89,7 @@ public class KnowledgeFeedbackServiceImpl implements KnowledgeFeedbackService {
         if (countsOnArticle) {
             articleMapper.addUsefulCount(articleId, 1);
         }
+        invalidateArticle(articleId);
         return true;
     }
 
@@ -112,5 +122,12 @@ public class KnowledgeFeedbackServiceImpl implements KnowledgeFeedbackService {
             throw new BizException(ErrorCode.ARTICLE_NOT_FOUND, "文章不存在或已下架");
         }
         return article;
+    }
+
+    private void invalidateArticle(Long articleId) {
+        KnowledgeArticle article = articleMapper.selectById(articleId);
+        if (article != null) {
+            cacheInvalidator.delete(redisKey.articleDetail(article.getSlug()));
+        }
     }
 }

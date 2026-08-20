@@ -277,6 +277,10 @@ public class OrderServiceImpl implements OrderService {
 
         // 未支付的订单库存也是扣着的，取消必须还回去。
         // 归还逻辑只有 OrderStockSupport 一处，售后通过走的也是它
+        int affected = orderMapper.markStatus(id, order.getStatus(), target.code());
+        if (affected == 0) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID, "订单状态已变化，请刷新后重试");
+        }
         stockSupport.restore(id);
 
         TradeOrder update = new TradeOrder();
@@ -292,6 +296,10 @@ public class OrderServiceImpl implements OrderService {
     public void receive(Long id) {
         TradeOrder order = requireOwnedOrder(id);
         OrderStatus target = requireTransition(order, OrderAction.RECEIVE);
+
+        if (orderMapper.markStatus(id, order.getStatus(), target.code()) == 0) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID, "订单状态已变化，请刷新后重试");
+        }
 
         TradeOrder update = new TradeOrder();
         update.setId(id);
@@ -316,6 +324,10 @@ public class OrderServiceImpl implements OrderService {
     public void applyAfterSale(Long id, String reason) {
         TradeOrder order = requireOwnedOrder(id);
         OrderStatus target = requireTransition(order, OrderAction.APPLY_AFTER_SALE);
+
+        if (orderMapper.markStatus(id, order.getStatus(), target.code()) == 0) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID, "订单状态已变化，请刷新后重试");
+        }
 
         TradeOrder update = new TradeOrder();
         update.setId(id);

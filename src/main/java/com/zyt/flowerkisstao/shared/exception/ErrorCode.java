@@ -16,6 +16,8 @@ public final class ErrorCode {
     public static final int UNAUTHORIZED = 1401;
     /** 已登录但权限不足 */
     public static final int FORBIDDEN = 1403;
+    /** 请求超过 Redis 限流窗口配额 */
+    public static final int TOO_MANY_REQUESTS = 1429;
 
     /** 用户名或密码错误 */
     public static final int LOGIN_FAILED = 2001;

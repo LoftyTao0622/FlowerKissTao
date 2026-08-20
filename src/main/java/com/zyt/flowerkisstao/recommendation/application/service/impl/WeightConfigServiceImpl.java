@@ -9,30 +9,49 @@ import com.zyt.flowerkisstao.recommendation.web.dto.WeightConfigDTO;
 import com.zyt.flowerkisstao.shared.exception.BizException;
 import com.zyt.flowerkisstao.shared.exception.ErrorCode;
 import com.zyt.flowerkisstao.shared.security.CurrentUser;
+import com.zyt.flowerkisstao.shared.redis.AfterCommitCacheInvalidator;
+import com.zyt.flowerkisstao.shared.redis.RedisCacheService;
+import com.zyt.flowerkisstao.shared.redis.RedisKey;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.time.Duration;
 
 @Service
 public class WeightConfigServiceImpl implements WeightConfigService {
 
     private final RecWeightConfigMapper weightMapper;
     private final OperationLogService operationLogService;
+    private final RedisCacheService cacheService;
+    private final AfterCommitCacheInvalidator cacheInvalidator;
+    private final RedisKey redisKey;
 
     public WeightConfigServiceImpl(RecWeightConfigMapper weightMapper,
-                                   OperationLogService operationLogService) {
+                                   OperationLogService operationLogService,
+                                   RedisCacheService cacheService,
+                                   AfterCommitCacheInvalidator cacheInvalidator,
+                                   RedisKey redisKey) {
         this.weightMapper = weightMapper;
         this.operationLogService = operationLogService;
+        this.cacheService = cacheService;
+        this.cacheInvalidator = cacheInvalidator;
+        this.redisKey = redisKey;
     }
 
     @Override
     public WeightSet current() {
+        WeightSet cached = cacheService.get(redisKey.recommendWeights(), WeightSet.class).orElse(null);
+        if (cached != null) {
+            return cached;
+        }
         RecWeightConfig config = weightMapper.selectById(RecWeightConfig.SINGLETON_ID);
         // 配置行缺失时退回方案默认口径。让推荐"算不出来"比"用默认权重算"糟糕得多——
         // 前者整个功能瘫痪，后者只是没用上管理员的自定义值
-        return config == null ? WeightSet.DEFAULT : WeightSet.from(config);
+        WeightSet weights = config == null ? WeightSet.DEFAULT : WeightSet.from(config);
+        cacheService.set(redisKey.recommendWeights(), weights, Duration.ofMinutes(5));
+        return weights;
     }
 
     @Override
@@ -68,6 +87,7 @@ public class WeightConfigServiceImpl implements WeightConfigService {
         // 只记录权重白名单字段，不带用户资料或请求 body
         operationLogService.record("recommendation", "CONFIG", "rec_weight_config",
                 RecWeightConfig.SINGLETON_ID, beforeSnapshot, snapshot(config));
+        cacheInvalidator.delete(redisKey.recommendWeights());
     }
 
     private static Map<String, Object> snapshot(RecWeightConfig config) {

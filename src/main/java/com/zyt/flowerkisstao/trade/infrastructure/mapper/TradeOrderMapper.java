@@ -11,6 +11,12 @@ import java.time.LocalDateTime;
 @Mapper
 public interface TradeOrderMapper extends BaseMapper<TradeOrder> {
 
+    @Update("UPDATE trade_order SET status = #{targetStatus} "
+            + "WHERE id = #{orderId} AND status = #{expectedStatus}")
+    int markStatus(@Param("orderId") Long orderId,
+                   @Param("expectedStatus") int expectedStatus,
+                   @Param("targetStatus") int targetStatus);
+
     /**
      * 标记支付成功。防重复支付的落点。
      *
@@ -32,4 +38,3 @@ public interface TradeOrderMapper extends BaseMapper<TradeOrder> {
                  @Param("idemKey") String idemKey,
                  @Param("paidAt") LocalDateTime paidAt);
 }
-
