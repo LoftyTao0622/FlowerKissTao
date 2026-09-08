@@ -11,6 +11,9 @@ import java.util.Set;
 @Mapper
 public interface SysUserMapper extends BaseMapper<SysUser> {
 
+    @Select("SELECT * FROM sys_user WHERE id = #{userId} AND deleted = 0 FOR UPDATE")
+    SysUser selectForUpdate(@Param("userId") Long userId);
+
     /**
      * 五表 JOIN，取出该用户的全部权限点。登录与每次 token 校验都会走这里。
      */

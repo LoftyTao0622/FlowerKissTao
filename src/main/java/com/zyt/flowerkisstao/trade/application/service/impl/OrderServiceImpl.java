@@ -112,6 +112,18 @@ public class OrderServiceImpl implements OrderService {
     public OrderVO create(OrderCreateDTO dto) {
         Long userId = CurrentUser.requireUserId();
 
+        // 用户行锁覆盖"购物车条目不相交"的并发请求，幂等键查询与后续建单在同一
+        // 数据库临界区内完成。重复提交直接返回第一次创建的订单。
+        orderMapper.lockUserForCheckout(userId);
+        TradeOrder existingOrder = orderMapper.selectOne(Wrappers.<TradeOrder>lambdaQuery()
+                .eq(TradeOrder::getUserId, userId)
+                .eq(TradeOrder::getCheckoutIdemKey, dto.getIdemKey())
+                .last("LIMIT 1"));
+        if (existingOrder != null) {
+            return TradeConverter.toVO(existingOrder, itemsOf(existingOrder.getId()),
+                    OrderAction.Actor.CUSTOMER);
+        }
+
         UserAddress address = addressMapper.selectById(dto.getAddressId());
         if (address == null || !address.getUserId().equals(userId)) {
             throw new BizException(ErrorCode.ADDRESS_NOT_FOUND, "收货地址不存在");
@@ -167,6 +179,7 @@ public class OrderServiceImpl implements OrderService {
         TradeOrder order = new TradeOrder();
         order.setOrderNo(nextOrderNo());
         order.setUserId(userId);
+        order.setCheckoutIdemKey(dto.getIdemKey());
         order.setStatus(OrderStatus.PENDING_PAY.code());
         order.setTotalAmount(totalAmount);
         order.setItemCount(itemCount);

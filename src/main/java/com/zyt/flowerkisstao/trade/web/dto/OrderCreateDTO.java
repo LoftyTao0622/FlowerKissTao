@@ -2,6 +2,8 @@ package com.zyt.flowerkisstao.trade.web.dto;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -15,6 +17,14 @@ import java.util.List;
  */
 @Data
 public class OrderCreateDTO {
+
+    /**
+     * 结算请求幂等键。客户端重试同一次结算时必须复用它；数据库会把它与用户 id
+     * 一起做唯一约束，避免网络重试生成第二张订单。
+     */
+    @NotBlank(message = "缺少结算幂等标识")
+    @Size(max = 64, message = "结算幂等标识不能超过 64 个字符")
+    private String idemKey;
 
     @NotNull(message = "请选择收货地址")
     private Long addressId;

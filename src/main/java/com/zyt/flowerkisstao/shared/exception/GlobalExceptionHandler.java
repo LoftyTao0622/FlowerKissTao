@@ -11,6 +11,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.stream.Collectors;
 
@@ -57,6 +59,18 @@ public class GlobalExceptionHandler {
     public R<Void> handleUnreadable(HttpMessageNotReadableException e) {
         log.warn("请求体解析失败: {}", e.getMessage());
         return R.fail(ErrorCode.PARAM_INVALID, "请求体格式不正确，请确认是合法的 UTF-8 JSON");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public R<Void> handleUploadSize(MaxUploadSizeExceededException e) {
+        return R.fail(ErrorCode.PARAM_INVALID, "头像图片不能超过 2 MB");
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public R<Void> handleMissingUpload(MissingServletRequestPartException e) {
+        return R.fail(ErrorCode.PARAM_INVALID, "请选择头像图片");
     }
 
     /** 兜底，堆栈只进日志 */

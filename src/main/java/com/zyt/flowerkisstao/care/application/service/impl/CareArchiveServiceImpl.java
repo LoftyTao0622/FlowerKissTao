@@ -201,10 +201,17 @@ public class CareArchiveServiceImpl implements CareArchiveService {
 
         List<CareTask> existing = taskMapper.selectList(Wrappers.<CareTask>lambdaQuery()
                 .eq(CareTask::getArchiveId, archive.getId())
-                .ge(CareTask::getDueDate, from)
-                .lt(CareTask::getDueDate, to));
+                .and(w -> w
+                        .and(x -> x.ge(CareTask::getPlannedDate, from)
+                                .lt(CareTask::getPlannedDate, to))
+                        // 兼容新增字段前已经存在的任务，旧数据的 planned_date 为空时
+                        // 仍按原 due_date 参与去重。
+                        .or(x -> x.isNull(CareTask::getPlannedDate)
+                                .ge(CareTask::getDueDate, from)
+                                .lt(CareTask::getDueDate, to))));
         java.util.Set<String> seen = existing.stream()
-                .map(task -> task.getTaskType() + "@" + task.getDueDate())
+                .map(task -> task.getTaskType() + "@"
+                        + (task.getPlannedDate() == null ? task.getDueDate() : task.getPlannedDate()))
                 .collect(Collectors.toSet());
 
         int inserted = 0;
@@ -219,6 +226,7 @@ public class CareArchiveServiceImpl implements CareArchiveService {
             task.setTitle(plan.title());
             task.setInstruction(plan.instruction());
             task.setDueDate(plan.dueDate());
+            task.setPlannedDate(plan.dueDate());
             task.setStatus(CareTask.STATUS_PENDING);
             if (taskMapper.insertIgnore(task) > 0) {
                 inserted++;
@@ -321,7 +329,9 @@ public class CareArchiveServiceImpl implements CareArchiveService {
         update.setStatus(CareTask.STATUS_DONE);
         update.setCompletedAt(LocalDateTime.now());
         update.setNote(dto == null ? null : dto.getNote());
-        taskMapper.updateById(update);
+        if (taskMapper.completeIfOpen(update) == 0) {
+            throw new BizException(ErrorCode.CARE_TASK_CLOSED, "任务状态已变化，请刷新后重试");
+        }
 
         // 完成任意一个任务就把连续遗漏清零——"连续"的语义在这里
         if (archive.getMissedCount() != null && archive.getMissedCount() > 0) {
@@ -338,10 +348,9 @@ public class CareArchiveServiceImpl implements CareArchiveService {
         CareTask task = requireOpenTask(taskId);
         CareArchive archive = requireOwnedArchive(task.getArchiveId());
 
-        CareTask update = new CareTask();
-        update.setId(taskId);
-        update.setStatus(CareTask.STATUS_SKIPPED);
-        taskMapper.updateById(update);
+        if (taskMapper.skipIfOpen(taskId) == 0) {
+            throw new BizException(ErrorCode.CARE_TASK_CLOSED, "任务状态已变化，请刷新后重试");
+        }
 
         // 主动跳过与被动逾期一样计入连续遗漏：两者都说明当前频率跟不上
         bumpMissed(archive);
@@ -359,7 +368,9 @@ public class CareArchiveServiceImpl implements CareArchiveService {
         update.setDueDate(task.getDueDate().plusDays(days));
         // 延后的任务重新回到待办：逾期状态下延后应当恢复正常，否则它永远标红
         update.setStatus(CareTask.STATUS_PENDING);
-        taskMapper.updateById(update);
+        if (taskMapper.postponeIfOpen(update) == 0) {
+            throw new BizException(ErrorCode.CARE_TASK_CLOSED, "任务状态已变化，请刷新后重试");
+        }
     }
 
     // ================================================================

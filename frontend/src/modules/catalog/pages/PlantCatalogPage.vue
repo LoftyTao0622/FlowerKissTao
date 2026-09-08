@@ -19,6 +19,9 @@ const keywordFromRoute = computed(() => {
 const searchInput = ref(keywordFromRoute.value)
 const selectedCategory = ref<string>('全部')
 const selectedLight = ref<string>('全部')
+const currentPage = ref(1)
+const pageSize = 12
+let loadSequence = 0
 
 const plants = ref<CatalogPlant[]>([])
 const total = ref(0)
@@ -38,25 +41,28 @@ function describeError(error: unknown, fallback: string) {
 }
 
 async function loadPlants() {
+  const sequence = ++loadSequence
   loading.value = true
   errorMessage.value = ''
 
   try {
     const result = await fetchPlantPage({
-      current: 1,
-      size: 60,
+      current: currentPage.value,
+      size: pageSize,
       keyword: keywordFromRoute.value.trim() || undefined,
       category: selectedCategory.value === '全部' ? undefined : selectedCategory.value,
       light: selectedLight.value === '全部' ? undefined : selectedLight.value,
     })
+    if (sequence !== loadSequence) return
     plants.value = result.records
     total.value = result.total
   } catch (error) {
+    if (sequence !== loadSequence) return
     plants.value = []
     total.value = 0
     errorMessage.value = describeError(error, '植物列表加载失败，请稍后重试。')
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 
@@ -74,6 +80,7 @@ watch(keywordFromRoute, (value) => {
 })
 
 watch([keywordFromRoute, selectedCategory, selectedLight], () => {
+  currentPage.value = 1
   void loadPlants()
 })
 
@@ -105,6 +112,15 @@ function resetFilters() {
   delete nextQuery.q
   delete nextQuery.keyword
   void router.replace({ query: nextQuery })
+}
+
+function changePage(next: number) {
+  currentPage.value = next
+  void loadPlants()
+  document.querySelector('.catalog-results__heading')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  })
 }
 </script>
 
@@ -194,6 +210,20 @@ function resetFilters() {
       <div v-else-if="plants.length" class="catalog-grid">
         <PlantCard v-for="plant in plants" :key="plant.id" :plant="plant" />
       </div>
+
+      <nav v-if="!loading && !errorMessage && total > pageSize" class="catalog-pagination" aria-label="植物列表分页">
+        <button type="button" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">
+          上一页
+        </button>
+        <span>第 {{ currentPage }} / {{ Math.ceil(total / pageSize) }} 页</span>
+        <button
+          type="button"
+          :disabled="currentPage >= Math.ceil(total / pageSize)"
+          @click="changePage(currentPage + 1)"
+        >
+          下一页
+        </button>
+      </nav>
 
       <div v-else class="catalog-empty" role="status">
         <span class="catalog-empty__mark" aria-hidden="true">叶</span>
@@ -359,6 +389,33 @@ function resetFilters() {
 .catalog-grid {
   display: grid;
   gap: var(--space-lg);
+}
+
+.catalog-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.catalog-pagination button {
+  min-height: 2.5rem;
+  padding: 0 var(--space-md);
+  color: var(--color-brand-deep);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+}
+
+.catalog-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .catalog-skeleton {

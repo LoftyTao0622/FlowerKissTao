@@ -3,6 +3,8 @@ import { defineStore } from 'pinia'
 
 import * as cartApi from '../api/cart'
 import type { Cart, CartItem } from '../types/trade'
+import { createRequestGuard } from '@/shared/state/requestGuard'
+import { registerSessionReset } from '@/shared/state/sessionRegistry'
 
 /**
  * 改造前购物车存在这个 localStorage 键下。
@@ -27,6 +29,7 @@ export const useCartStore = defineStore('cart', () => {
 
   /** 旧版购物车被清理时置为 true，界面上提示一次 */
   const legacyCleared = ref(false)
+  const requestGuard = createRequestGuard()
 
   const items = computed<CartItem[]>(() => cart.value?.items ?? [])
 
@@ -45,17 +48,21 @@ export const useCartStore = defineStore('cart', () => {
   const isEmpty = computed(() => items.value.length === 0)
 
   async function load() {
+    const token = requestGuard.begin()
     // 首次加载时清掉改造前的 localStorage 购物车。旧数据按 slug 存、还带着客户端
     // 价格，两样都没法安全迁移。检测到旧数据会置 legacyCleared，由界面提示用户。
     purgeLegacyCart()
     loading.value = true
     errorMessage.value = ''
     try {
-      cart.value = await cartApi.fetchCart()
+      const result = await cartApi.fetchCart()
+      if (requestGuard.isCurrent(token)) cart.value = result
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '购物车加载失败'
+      if (requestGuard.isCurrent(token)) {
+        errorMessage.value = error instanceof Error ? error.message : '购物车加载失败'
+      }
     } finally {
-      loading.value = false
+      if (requestGuard.isCurrent(token)) loading.value = false
     }
   }
 
@@ -64,49 +71,65 @@ export const useCartStore = defineStore('cart', () => {
    * 本地拼的话这些字段会是旧的。
    */
   async function add(skuId: number, quantity = 1) {
+    const session = requestGuard.captureSession()
     errorMessage.value = ''
     try {
       await cartApi.addToCart(skuId, quantity)
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '加入购物车失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '加入购物车失败'
+      }
       return false
     }
   }
 
   async function setQuantity(skuId: number, quantity: number) {
+    const session = requestGuard.captureSession()
     errorMessage.value = ''
     try {
       await cartApi.updateCartQuantity(skuId, quantity)
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '修改数量失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '修改数量失败'
+      }
       return false
     }
   }
 
   async function remove(skuId: number) {
+    const session = requestGuard.captureSession()
     errorMessage.value = ''
     try {
       await cartApi.removeFromCart(skuId)
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '移除失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '移除失败'
+      }
       return false
     }
   }
 
   async function clear() {
+    const session = requestGuard.captureSession()
     errorMessage.value = ''
     try {
       await cartApi.clearCart()
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '清空失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '清空失败'
+      }
       return false
     }
   }
@@ -138,10 +161,13 @@ export const useCartStore = defineStore('cart', () => {
 
   /** 退出登录时清空，避免下一个账号看到上一个人的购物车 */
   function reset() {
+    requestGuard.reset()
     cart.value = null
     errorMessage.value = ''
     loading.value = false
   }
+
+  registerSessionReset(reset)
 
   return {
     cart,

@@ -51,6 +51,12 @@ public class CareTask implements Serializable {
     /** 建议日期 */
     private LocalDate dueDate;
 
+    /**
+     * 计划实例的稳定日期。延后只改变 dueDate，不改变这个值，
+     * 这样每日补任务不会把同一个计划重新生成一遍。
+     */
+    private LocalDate plannedDate;
+
     private Integer status;
 
     private LocalDateTime completedAt;

@@ -7,6 +7,7 @@ import {
   markRecommendationClicked,
 } from '../api/recommendation'
 import type { Recommendation, RecItem } from '../types/recommendation'
+import { registerSessionReset } from '@/shared/state/sessionRegistry'
 
 export type RecommendationStatus = 'idle' | 'error' | 'generating' | 'success'
 
@@ -97,6 +98,8 @@ export const useRecommendationStore = defineStore('recommendation', () => {
     result.value = null
     errorMessage.value = ''
   }
+
+  registerSessionReset(reset)
 
   return {
     status,

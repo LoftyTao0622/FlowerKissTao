@@ -67,7 +67,12 @@ public class KnowledgeFeedbackServiceImpl implements KnowledgeFeedbackService {
                         .last("LIMIT 1"));
 
         if (existing != null) {
-            feedbackMapper.deleteById(existing.getId());
+            // 两个取消请求可能同时读到同一条反馈。只有真正删除的请求才有权
+            // 修改文章计数，否则 useful_count 会被重复减小。
+            int deleted = feedbackMapper.deleteById(existing.getId());
+            if (deleted == 0) {
+                return false;
+            }
             if (countsOnArticle) {
                 articleMapper.addUsefulCount(articleId, -1);
             }

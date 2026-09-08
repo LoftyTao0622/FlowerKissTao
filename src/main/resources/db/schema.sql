@@ -398,7 +398,9 @@ CREATE TABLE `trade_cart` (
 -- status 六个取值来自方案原文："订单状态覆盖待付款、待发货、运输中、已完成、
 -- 已取消和售后中"。流转规则在 OrderTransition 里，是个可单测的纯函数。
 --
--- pay_idem_key 的唯一索引是"防重复支付"的真正落点。方案要求"结合幂等标识
+-- checkout_idem_key 的唯一索引是"防重复下单"的真正落点；pay_idem_key 是
+-- "防重复支付"的落点。两者都由数据库约束兜底。
+-- 方案要求"结合幂等标识
 -- 避免重复付款"——靠应用层先查再插是有竞态的（两个请求可能同时查到"没付过"），
 -- 唯一索引没有这个问题，第二个请求必然撞键。
 --
@@ -422,6 +424,7 @@ CREATE TABLE `trade_order` (
   `phone`           VARCHAR(20)   NOT NULL              COMMENT '收件电话快照',
   `address_snapshot` VARCHAR(200) NOT NULL              COMMENT '完整地址快照，省市区+详细地址拼好',
 
+  `checkout_idem_key` VARCHAR(64)  NOT NULL              COMMENT '结算请求幂等标识，与用户联合唯一',
   `pay_idem_key`    VARCHAR(64)       NULL              COMMENT '支付幂等标识，唯一索引拦重复付款',
   `paid_at`         DATETIME          NULL,
   `shipped_at`      DATETIME          NULL,
@@ -436,6 +439,7 @@ CREATE TABLE `trade_order` (
   `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_order_no` (`order_no`),
+  UNIQUE KEY `uk_order_user_checkout` (`user_id`, `checkout_idem_key`),
   -- NULL 不参与唯一性判定，所以未支付订单的 NULL 不会互相冲突
   UNIQUE KEY `uk_order_pay_idem` (`pay_idem_key`),
   KEY `idx_order_user_status` (`user_id`, `status`, `created_at`),
@@ -536,13 +540,14 @@ CREATE TABLE `care_task` (
   `title`         VARCHAR(60)  NOT NULL              COMMENT '任务标题，如"检查盆土并浇水"',
   `instruction`   VARCHAR(255) NOT NULL              COMMENT '操作方法、用量或注意事项',
   `due_date`      DATE         NOT NULL              COMMENT '建议日期',
+  `planned_date`  DATE         NOT NULL              COMMENT '计划实例日期，延后时保持不变',
   `status`        TINYINT      NOT NULL DEFAULT 0    COMMENT '0 待办 1 已完成 2 已跳过 3 已逾期',
   `completed_at`  DATETIME         NULL,
   `note`          VARCHAR(255)     NULL              COMMENT '完成时附的文字记录',
   `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  -- 任务生成允许多实例并发，但同一档案同一类型同一天只能有一条
-  UNIQUE KEY `uk_task_archive_type_due` (`archive_id`, `task_type`, `due_date`),
+  -- 任务生成允许多实例并发，但同一计划实例只能有一条；延后不改变 planned_date
+  UNIQUE KEY `uk_task_archive_type_planned` (`archive_id`, `task_type`, `planned_date`),
   -- 日历视图按档案 + 日期范围查，这个索引直接覆盖
   KEY `idx_task_archive_due` (`archive_id`, `due_date`),
   -- 每日定时任务要捞"今天到期的"与"已逾期的"，按日期 + 状态查

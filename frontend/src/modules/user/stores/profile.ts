@@ -7,6 +7,8 @@ import type {
   SceneProfileDraft,
   SceneProfileInput,
 } from '@/modules/user/types/profile'
+import { createRequestGuard } from '@/shared/state/requestGuard'
+import { registerSessionReset } from '@/shared/state/sessionRegistry'
 
 /** 问卷分步：与 RecommendationPage 的四个 fieldset 分组一一对应 */
 export const STEP_KEYS = [
@@ -100,6 +102,7 @@ export const useProfileStore = defineStore('sceneProfile', () => {
   const saving = ref(false)
   /** 保存失败的整体提示，如后端的跨字段矛盾校验 */
   const saveError = ref('')
+  const requestGuard = createRequestGuard()
 
   const isFirstStep = computed(() => step.value === 0)
   const isLastStep = computed(() => step.value === TOTAL_STEPS - 1)
@@ -109,9 +112,12 @@ export const useProfileStore = defineStore('sceneProfile', () => {
   )
 
   async function loadProfiles() {
+    const token = requestGuard.begin()
     loading.value = true
     try {
-      profiles.value = await profileApi.fetchMyProfiles()
+      const result = await profileApi.fetchMyProfiles()
+      if (!requestGuard.isCurrent(token)) return
+      profiles.value = result
 
       // 已有场景时默认进入默认场景的编辑态，用户一进页面就能看到自己填过的答案
       const first = profiles.value[0]
@@ -119,7 +125,7 @@ export const useProfileStore = defineStore('sceneProfile', () => {
         selectProfile(first.id)
       }
     } finally {
-      loading.value = false
+      if (requestGuard.isCurrent(token)) loading.value = false
     }
   }
 
@@ -250,6 +256,7 @@ export const useProfileStore = defineStore('sceneProfile', () => {
    * 校验不过或后端拒绝时返回 null，错误信息在 errors / saveError 里。
    */
   async function save(): Promise<SceneProfile | null> {
+    const session = requestGuard.captureSession()
     saveError.value = ''
     if (!validateAll()) return null
 
@@ -265,22 +272,29 @@ export const useProfileStore = defineStore('sceneProfile', () => {
 
       // 重新拉一次而不是本地拼：后端会派生 maxFootprintCm、careTags 与各 *Label，
       // 本地拼的话这些字段会是旧的或空的
-      profiles.value = await profileApi.fetchMyProfiles()
+      const result = await profileApi.fetchMyProfiles()
+      if (!requestGuard.isSessionCurrent(session)) return null
+      profiles.value = result
       editingId.value = id
       return profiles.value.find((item) => item.id === id) ?? null
     } catch (error) {
-      saveError.value = error instanceof Error ? error.message : '保存失败，请稍后重试'
+      if (requestGuard.isSessionCurrent(session)) {
+        saveError.value = error instanceof Error ? error.message : '保存失败，请稍后重试'
+      }
       return null
     } finally {
-      saving.value = false
+      if (requestGuard.isSessionCurrent(session)) saving.value = false
     }
   }
 
   async function remove(id: number) {
+    const session = requestGuard.captureSession()
     saveError.value = ''
     try {
       await profileApi.deleteProfile(id)
-      profiles.value = await profileApi.fetchMyProfiles()
+      const result = await profileApi.fetchMyProfiles()
+      if (!requestGuard.isSessionCurrent(session)) return false
+      profiles.value = result
       if (editingId.value === id) {
         const first = profiles.value[0]
         if (first) selectProfile(first.id)
@@ -288,25 +302,34 @@ export const useProfileStore = defineStore('sceneProfile', () => {
       }
       return true
     } catch (error) {
-      saveError.value = error instanceof Error ? error.message : '删除失败，请稍后重试'
+      if (requestGuard.isSessionCurrent(session)) {
+        saveError.value = error instanceof Error ? error.message : '删除失败，请稍后重试'
+      }
       return false
     }
   }
 
   async function makeDefault(id: number) {
+    const session = requestGuard.captureSession()
     await profileApi.setDefaultProfile(id)
-    profiles.value = await profileApi.fetchMyProfiles()
+    const result = await profileApi.fetchMyProfiles()
+    if (requestGuard.isSessionCurrent(session)) profiles.value = result
   }
 
   /** 退出登录时清空，避免下一个账号看到上一个人的答案 */
   function reset() {
+    requestGuard.reset()
     profiles.value = []
     editingId.value = null
     draft.value = emptyDraft()
     step.value = 0
     errors.value = {}
     saveError.value = ''
+    loading.value = false
+    saving.value = false
   }
+
+  registerSessionReset(reset)
 
   return {
     profiles,

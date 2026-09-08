@@ -9,8 +9,11 @@ import type { Order } from '../types/trade'
  * 只传地址与要结算哪几个 SKU——数量取购物车里的，价格由后端实时算。
  * 库存不足时抛 ApiError(6003)，商品下架时 6005。
  */
-export function createOrder(addressId: number, skuIds: number[]) {
-  return request<Order>('/orders', { method: 'POST', body: { addressId, skuIds } })
+export function createOrder(addressId: number, skuIds: number[], idemKey: string) {
+  return request<Order>('/orders', {
+    method: 'POST',
+    body: { addressId, skuIds, idemKey },
+  })
 }
 
 /** 我的订单。status 传 undefined 表示全部 */

@@ -4,6 +4,8 @@ import { defineStore } from 'pinia'
 import * as addressApi from '../api/address'
 import * as orderApi from '../api/order'
 import type { Address, Order } from '../types/trade'
+import { createRequestGuard } from '@/shared/state/requestGuard'
+import { registerSessionReset } from '@/shared/state/sessionRegistry'
 
 /**
  * 订单。
@@ -29,6 +31,8 @@ export const useOrderStore = defineStore('order', () => {
    * 之后同一笔订单一直复用。
    */
   const idemKeys = ref<Record<number, string>>({})
+  const checkoutIdemKey = ref<string | null>(null)
+  const requestGuard = createRequestGuard()
 
   const hasOrders = computed(() => orders.value.length > 0)
 
@@ -44,76 +48,101 @@ export const useOrderStore = defineStore('order', () => {
   }
 
   async function loadMine(page = 1, size = 10, status?: number) {
+    const token = requestGuard.begin('list')
     loading.value = true
     errorMessage.value = ''
     try {
       const result = await orderApi.fetchMyOrders(page, size, status)
-      orders.value = result.records
-      total.value = result.total
+      if (requestGuard.isCurrent(token)) {
+        orders.value = result.records
+        total.value = result.total
+      }
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '订单加载失败'
+      if (requestGuard.isCurrent(token)) {
+        errorMessage.value = error instanceof Error ? error.message : '订单加载失败'
+      }
     } finally {
-      loading.value = false
+      if (requestGuard.isCurrent(token)) loading.value = false
     }
   }
 
   async function loadOne(id: number) {
+    const token = requestGuard.begin('detail')
     loading.value = true
     errorMessage.value = ''
     try {
-      current.value = await orderApi.fetchOrder(id)
+      const result = await orderApi.fetchOrder(id)
+      if (requestGuard.isCurrent(token)) current.value = result
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '订单加载失败'
-      current.value = null
+      if (requestGuard.isCurrent(token)) {
+        errorMessage.value = error instanceof Error ? error.message : '订单加载失败'
+        current.value = null
+      }
     } finally {
-      loading.value = false
+      if (requestGuard.isCurrent(token)) loading.value = false
     }
   }
 
   /** 下单。成功返回新订单，失败返回 null 并把原因写进 errorMessage */
   async function submit(addressId: number, skuIds: number[]) {
+    const session = requestGuard.captureSession()
+    const idemKey = checkoutIdemKey.value ?? createIdemKey()
+    checkoutIdemKey.value = idemKey
     submitting.value = true
     errorMessage.value = ''
     try {
-      const order = await orderApi.createOrder(addressId, skuIds)
+      const order = await orderApi.createOrder(addressId, skuIds, idemKey)
+      if (!requestGuard.isSessionCurrent(session)) return null
       current.value = order
+      checkoutIdemKey.value = null
       return order
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '下单失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '下单失败'
+      }
       return null
     } finally {
-      submitting.value = false
+      if (requestGuard.isSessionCurrent(session)) submitting.value = false
     }
   }
 
   /** 模拟支付。同一笔订单重试时复用同一个 idemKey */
   async function pay(id: number) {
+    const session = requestGuard.captureSession()
     submitting.value = true
     errorMessage.value = ''
     try {
-      current.value = await orderApi.payOrder(id, idemKeyFor(id))
+      const result = await orderApi.payOrder(id, idemKeyFor(id))
+      if (!requestGuard.isSessionCurrent(session)) return false
+      current.value = result
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '支付失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '支付失败'
+      }
       return false
     } finally {
-      submitting.value = false
+      if (requestGuard.isSessionCurrent(session)) submitting.value = false
     }
   }
 
   /** 取消 / 确认收货 / 申请售后共用一条收尾路径，成功后都要刷新详情 */
   async function runAction(id: number, action: () => Promise<void>, failMessage: string) {
+    const session = requestGuard.captureSession()
     submitting.value = true
     errorMessage.value = ''
     try {
       await action()
+      if (!requestGuard.isSessionCurrent(session)) return false
       await loadOne(id)
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : failMessage
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : failMessage
+      }
       return false
     } finally {
-      submitting.value = false
+      if (requestGuard.isSessionCurrent(session)) submitting.value = false
     }
   }
 
@@ -130,22 +159,38 @@ export const useOrderStore = defineStore('order', () => {
   }
 
   async function loadAddresses() {
+    const token = requestGuard.begin('addresses')
     try {
-      addresses.value = await addressApi.fetchAddresses()
+      const result = await addressApi.fetchAddresses()
+      if (requestGuard.isCurrent(token)) addresses.value = result
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '地址加载失败'
+      if (requestGuard.isCurrent(token)) {
+        errorMessage.value = error instanceof Error ? error.message : '地址加载失败'
+      }
     }
   }
 
   /** 退出登录时清空，避免下一个账号看到上一个人的订单 */
   function reset() {
+    requestGuard.reset()
     orders.value = []
     total.value = 0
     current.value = null
     addresses.value = []
     errorMessage.value = ''
     idemKeys.value = {}
+    checkoutIdemKey.value = null
+    loading.value = false
+    submitting.value = false
   }
+
+  function createIdemKey() {
+    return typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
+
+  registerSessionReset(reset)
 
   return {
     orders,

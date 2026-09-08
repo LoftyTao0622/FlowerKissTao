@@ -61,8 +61,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     headers.Authorization = `Bearer ${token}`
   }
   if (body !== undefined) {
-    // 显式声明 charset，否则中文昵称在某些环境下会以非 UTF-8 发出，后端解析报错
-    headers['Content-Type'] = 'application/json; charset=utf-8'
+    if (!(body instanceof FormData)) {
+      // 显式声明 charset，否则中文昵称在某些环境下会以非 UTF-8 发出，后端解析报错
+      headers['Content-Type'] = 'application/json; charset=utf-8'
+    }
   }
 
   let response: Response
@@ -70,7 +72,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     response = await fetch(buildUrl(path, query), {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
   } catch {
     // 断网、后端未启动、CORS 被拒都会走到这里

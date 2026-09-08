@@ -3,6 +3,8 @@ import { defineStore } from 'pinia'
 
 import * as addressApi from '../api/address'
 import type { Address, AddressInput } from '../types/trade'
+import { createRequestGuard } from '@/shared/state/requestGuard'
+import { registerSessionReset } from '@/shared/state/sessionRegistry'
 
 /** 收货地址簿 */
 export const useAddressStore = defineStore('address', () => {
@@ -10,6 +12,7 @@ export const useAddressStore = defineStore('address', () => {
   const loading = ref(false)
   const saving = ref(false)
   const errorMessage = ref('')
+  const requestGuard = createRequestGuard()
 
   /** 默认地址。后端已把它排在最前，取第一条即可 */
   const defaultAddress = computed(
@@ -19,14 +22,18 @@ export const useAddressStore = defineStore('address', () => {
   const isEmpty = computed(() => addresses.value.length === 0)
 
   async function load() {
+    const token = requestGuard.begin()
     loading.value = true
     errorMessage.value = ''
     try {
-      addresses.value = await addressApi.fetchAddresses()
+      const result = await addressApi.fetchAddresses()
+      if (requestGuard.isCurrent(token)) addresses.value = result
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '地址加载失败'
+      if (requestGuard.isCurrent(token)) {
+        errorMessage.value = error instanceof Error ? error.message : '地址加载失败'
+      }
     } finally {
-      loading.value = false
+      if (requestGuard.isCurrent(token)) loading.value = false
     }
   }
 
@@ -37,6 +44,7 @@ export const useAddressStore = defineStore('address', () => {
    * 本地拼的话这些字段会是旧的或空的。
    */
   async function save(id: number | null, payload: AddressInput) {
+    const session = requestGuard.captureSession()
     saving.value = true
     errorMessage.value = ''
     try {
@@ -45,45 +53,61 @@ export const useAddressStore = defineStore('address', () => {
       } else {
         await addressApi.updateAddress(id, payload)
       }
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '保存失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '保存失败'
+      }
       return false
     } finally {
-      saving.value = false
+      if (requestGuard.isSessionCurrent(session)) saving.value = false
     }
   }
 
   async function remove(id: number) {
+    const session = requestGuard.captureSession()
     errorMessage.value = ''
     try {
       await addressApi.deleteAddress(id)
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '删除失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '删除失败'
+      }
       return false
     }
   }
 
   async function makeDefault(id: number) {
+    const session = requestGuard.captureSession()
     errorMessage.value = ''
     try {
       await addressApi.setDefaultAddress(id)
+      if (!requestGuard.isSessionCurrent(session)) return false
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '设置默认地址失败'
+      if (requestGuard.isSessionCurrent(session)) {
+        errorMessage.value = error instanceof Error ? error.message : '设置默认地址失败'
+      }
       return false
     }
   }
 
   /** 退出登录时清空，地址是私有数据 */
   function reset() {
+    requestGuard.reset()
     addresses.value = []
     errorMessage.value = ''
+    loading.value = false
+    saving.value = false
   }
+
+  registerSessionReset(reset)
 
   return {
     addresses,

@@ -2,6 +2,7 @@ package com.zyt.flowerkisstao.trade;
 
 import com.zyt.flowerkisstao.trade.infrastructure.mapper.TradeOrderMapper;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Select;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,5 +31,18 @@ class TradeOrderMapperContractTest {
         assertTrue(sql.contains("status = #{targetstatus}"));
         assertTrue(sql.contains("where id = #{orderid}"));
         assertTrue(sql.contains("and status = #{expectedstatus}"));
+    }
+
+    @Test
+    @DisplayName("结算必须先锁定当前用户以串行化购物车消费")
+    void checkoutLocksUserRow() throws NoSuchMethodException {
+        Method method = TradeOrderMapper.class.getMethod("lockUserForCheckout", Long.class);
+        Select select = method.getAnnotation(Select.class);
+
+        assertTrue(select != null, "结算锁必须使用 MyBatis 查询注解");
+        String sql = String.join(" ", select.value()).toLowerCase();
+        assertTrue(sql.contains("from sys_user"));
+        assertTrue(sql.contains("where id = #{userid}"));
+        assertTrue(sql.contains("for update"));
     }
 }

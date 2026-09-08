@@ -1,6 +1,10 @@
 server:
   port: 8099
 spring:
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
   application:
     name: FlowerKissTao
   datasource:
@@ -30,6 +34,7 @@ mybatis-plus:
       # 主键用数据库自增，与 schema.sql 的 AUTO_INCREMENT 对应
       id-type: auto
 app:
+  upload-dir: ${APP_UPLOAD_DIR:uploads}
   redis:
     enabled: ${REDIS_ENABLED:true}
     cache-enabled: ${REDIS_CACHE_ENABLED:true}

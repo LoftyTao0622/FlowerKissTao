@@ -115,6 +115,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '收货地址', requiresAuth: true },
       },
       {
+        path: 'profile',
+        name: 'user-profile',
+        component: () => import('@/modules/user/pages/UserProfilePage.vue'),
+        meta: { title: '个人资料', requiresAuth: true },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/app/pages/ForbiddenPage.vue'),

@@ -68,6 +68,9 @@ public class TradeOrder implements Serializable {
     /** 完整地址快照，省市区 + 详细地址已拼好 */
     private String addressSnapshot;
 
+    /** 结算请求幂等标识，与 user_id 联合唯一 */
+    private String checkoutIdemKey;
+
     /** 支付幂等标识。唯一索引拦重复付款 */
     private String payIdemKey;
 

@@ -104,7 +104,7 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         // 静态资源与前端路由交给 Vue 处理
-                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/", "/index.html", "/assets/**", "/uploads/**", "/favicon.ico").permitAll()
                         .anyRequest().authenticated());
 
         http.authenticationProvider(authenticationProvider());

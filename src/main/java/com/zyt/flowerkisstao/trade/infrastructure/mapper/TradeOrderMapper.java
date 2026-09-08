@@ -4,12 +4,20 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.zyt.flowerkisstao.trade.domain.entity.TradeOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 
 @Mapper
 public interface TradeOrderMapper extends BaseMapper<TradeOrder> {
+
+    /**
+     * 串行化同一用户的结算事务。仅锁用户行，不锁整个订单表，既能覆盖购物车
+     * 条目不相交的并发结算，也能让幂等键查询与建单形成一个原子序列。
+     */
+    @Select("SELECT id FROM sys_user WHERE id = #{userId} FOR UPDATE")
+    Long lockUserForCheckout(@Param("userId") Long userId);
 
     @Update("UPDATE trade_order SET status = #{targetStatus} "
             + "WHERE id = #{orderId} AND status = #{expectedStatus}")

@@ -182,6 +182,10 @@ onBeforeUnmount(() => {
           <RouterLink class="text-action desktop-account" :to="{ name: 'my-plants' }">
             我的植物
           </RouterLink>
+          <RouterLink class="profile-link" :to="{ name: 'user-profile' }" aria-label="个人资料">
+            <img v-if="authStore.user?.avatar" :src="authStore.user.avatar" alt="" />
+            <span v-else aria-hidden="true">{{ displayName.slice(0, 1) || '我' }}</span>
+          </RouterLink>
           <RouterLink
             class="notify-bell"
             :to="{ name: 'care-notifications' }"
@@ -260,6 +264,10 @@ onBeforeUnmount(() => {
             </RouterLink>
             <RouterLink v-if="isLoggedIn" :to="{ name: 'my-plants' }">
               我的植物
+              <span aria-hidden="true">→</span>
+            </RouterLink>
+            <RouterLink v-if="isLoggedIn" :to="{ name: 'user-profile' }">
+              个人资料
               <span aria-hidden="true">→</span>
             </RouterLink>
             <RouterLink v-if="isLoggedIn" :to="{ name: 'care-notifications' }">
@@ -492,6 +500,22 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.profile-link {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  margin-inline: .15rem .35rem;
+  border-radius: 50%;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-weight: 800;
+  place-items: center;
+  text-decoration: none;
+}
+
+.profile-link img { width: 100%; height: 100%; object-fit: cover; }
 
 /* 养护提醒铃铛，与购物车图标同一尺度 */
 .notify-bell {

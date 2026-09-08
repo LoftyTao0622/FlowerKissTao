@@ -243,15 +243,36 @@ public class KnowledgeQueryServiceImpl implements KnowledgeQueryService {
      */
     @Override
     public List<ArticleVO> recommended(int limit) {
-        List<KnowledgeArticle> candidates = articleMapper.selectList(
-                Wrappers.<KnowledgeArticle>lambdaQuery()
-                        .eq(KnowledgeArticle::getStatus, ArticleStatus.PUBLISHED.code()));
-        if (candidates.isEmpty()) {
+        int safeLimit = Math.max(0, Math.min(limit, 20));
+        if (safeLimit == 0) {
             return List.of();
         }
 
         KnowledgeRecommender.UserSignals signals = collectSignals();
-        return KnowledgeRecommender.recommend(candidates, signals, limit).stream()
+        var query = Wrappers.<KnowledgeArticle>lambdaQuery()
+                // 推荐卡片和打分只需要这些字段，避免读取 steps/mistakes/risks 等正文 JSON。
+                .select(KnowledgeArticle::getId, KnowledgeArticle::getSlug,
+                        KnowledgeArticle::getTitle, KnowledgeArticle::getSummary,
+                        KnowledgeArticle::getCover, KnowledgeArticle::getCategory,
+                        KnowledgeArticle::getDifficulty, KnowledgeArticle::getSeasons,
+                        KnowledgeArticle::getTags, KnowledgeArticle::getRelatedTaskTypes,
+                        KnowledgeArticle::getRelatedSpecies, KnowledgeArticle::getPublishedAt,
+                        KnowledgeArticle::getViewCount, KnowledgeArticle::getUsefulCount)
+                .eq(KnowledgeArticle::getStatus, ArticleStatus.PUBLISHED.code());
+
+        // 游客和没有养护信号的新用户直接让数据库取热门 Top K。
+        if (signals.isEmpty()) {
+            query.orderByDesc(KnowledgeArticle::getUsefulCount)
+                    .orderByDesc(KnowledgeArticle::getViewCount)
+                    .orderByAsc(KnowledgeArticle::getId)
+                    .last("LIMIT " + safeLimit);
+        }
+        List<KnowledgeArticle> candidates = articleMapper.selectList(query);
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+
+        return KnowledgeRecommender.recommend(candidates, signals, safeLimit).stream()
                 .map(scored -> {
                     ArticleVO vo = KnowledgeConverter.toSummary(scored.article());
                     vo.setRecommendReason(scored.reason());

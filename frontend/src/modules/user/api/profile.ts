@@ -1,6 +1,28 @@
 import { request } from '@/shared/api/request'
 
 import type { SceneProfile, SceneProfileInput } from '../types/profile'
+import type { AuthUser } from '@/shared/api/types'
+
+export interface ProfileUpdatePayload {
+  username?: string
+  nickname?: string
+  currentPassword?: string
+  newPassword?: string
+}
+
+export function fetchUserProfile() {
+  return request<AuthUser>('/user/profile')
+}
+
+export function updateUserProfile(payload: ProfileUpdatePayload) {
+  return request<AuthUser>('/user/profile', { method: 'PUT', body: payload })
+}
+
+export function uploadAvatar(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return request<{ url: string }>('/user/profile/avatar', { method: 'POST', body })
+}
 
 /** 我的全部场景，默认场景排在最前 */
 export function fetchMyProfiles() {
