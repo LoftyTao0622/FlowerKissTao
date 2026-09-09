@@ -1,114 +1,77 @@
 # 花吻陶 · FlowerKissTao
 
-[English README](README.en.md)
+[English README](README.en.md) · [MIT License](LICENSE)
 
-花吻陶是一个面向室内植物爱好者的全栈应用：浏览植物目录，按光照、空间、宠物安全和养护时间生成个性化推荐，并继续完成购买与养护记录。项目包含 Spring Boot API 与 Vue 单页前端。
+花吻陶是一个“先理解环境，再选择植物”的全栈植物服务。用户填写光照、空间、宠物安全和养护时间等条件后，系统筛选并排序合适的植物，支持从浏览、推荐到购买和购后养护的一条路径。
 
-![自然光下的室内植物温室场景](frontend/src/assets/images/hero-greenhouse.webp)
+![明亮散射光场景中的室内植物](frontend/src/assets/images/hero-greenhouse.webp)
 
-上图对应首页的核心体验：先描述你的环境，再得到可解释的植物推荐。游客可以浏览目录和知识库；登录后可保存场景画像、推荐结果、购物车、订单和养护计划。
+## ✨ 能做什么
 
-## 快速开始
+- **智能推荐**：按光照、温度、湿度、空间、预算、偏好和养护难度进行硬过滤与加权排序，并返回推荐理由。
+- **植物目录**：浏览植物品种与 SKU，查看规格、库存和养护属性。
+- **养护计划**：收货后生成植物档案、养护任务、提醒、健康记录和复评入口。
+- **知识库**：公开阅读养护文章；登录后可收藏并反馈文章是否有帮助。
+- **交易流程**：地址、购物车、订单、模拟支付、发货、收货和售后状态流转。
+- **运营后台**：商品、SKU、订单、知识文章、推荐权重、用户和操作日志均按角色权限控制。
 
-### 环境要求
+## 运行关系
 
-- JDK 17 或更高版本（Maven 编译目标为 Java 17）
-- Maven
-- Node.js `^22.18.0 || >=24.12.0`
-- pnpm 11.9.0
-- MySQL（默认连接数据库名为 `plant`）
-- Redis（默认端口为 `6386`；也可以通过配置关闭 Redis）
-
-### 1. 初始化数据库
-
-在仓库根目录创建数据库，并依次执行项目提供的结构和种子数据脚本：
-
-```bash
-mysql -h 127.0.0.1 -P 3306 -u root -p -e "CREATE DATABASE IF NOT EXISTS plant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -h 127.0.0.1 -P 3306 -u root -p plant < src/main/resources/db/schema.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p plant < src/main/resources/db/data.sql
+```mermaid
+flowchart LR
+  B[浏览器] --> F[Vue + Vite 前端<br/>127.0.0.1:5173]
+  F -->|/api 与 /uploads 代理| A[Spring Boot REST API<br/>127.0.0.1:8099]
+  A --> M[(MySQL<br/>plant)]
+  A -.缓存 / 限流 / 分布式锁.-> R[(Redis<br/>可选)]
+  A --> S[Spring Task<br/>养护任务调度]
 ```
 
-如果你的 MySQL 或 Redis 不使用默认地址，请在启动后端前设置 `MYSQL_*`、`REDIS_*` 环境变量。种子账号仅用于本地演示；也可以直接在登录页注册新账号。
+## 🚀 快速开始
 
-### 2. 启动后端
+### 1. 准备依赖
 
-在仓库根目录运行：
+- Java 17 或更高版本（Maven 编译目标为 17）
+- Maven
+- Node.js `^22.18.0` 或 `>=24.12.0`
+- pnpm `11.9.0`
+- MySQL（创建名为 `plant` 的数据库）
+- Redis：默认连接 `127.0.0.1:6386`；没有 Redis 时可在启动前设置 `REDIS_ENABLED=false`
 
-```bash
+### 2. 初始化 MySQL
+
+在仓库根目录执行。命令中的用户名和密码请替换为本机配置：
+
+```powershell
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS plant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+Get-Content .\src\main\resources\db\schema.sql | mysql -u root -p plant
+Get-Content .\src\main\resources\db\data.sql   | mysql -u root -p plant
+```
+
+`schema.sql` 建表，`data.sql` 写入角色、权限、植物、SKU 和知识文章种子数据。脚本会创建 24 张业务表，并提供 `admin`、`operator`、`demo` 三类本地演示账号；生产环境请更换密码和 JWT 密钥。
+
+### 3. 启动后端
+
+```powershell
 mvn spring-boot:run
 ```
 
-API 默认监听 `http://127.0.0.1:8099`。
+后端 API 监听 `http://127.0.0.1:8099`。Redis 或 JWT 配置可通过环境变量覆盖；MySQL 用户名和密码使用 `MYSQL_USERNAME` / `MYSQL_PASSWORD`。
 
-### 3. 启动前端
+### 4. 启动前端
 
-另开一个终端：
+另开终端：
 
-```bash
+```powershell
 cd frontend
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-打开 <http://127.0.0.1:5173>。Vite 会把 `/api` 和 `/uploads` 请求代理到后端 8099 端口。前端环境变量示例见 [`frontend/.env.example`](frontend/.env.example)。
+打开 <http://127.0.0.1:5173>。Vite 会把 `/api` 和 `/uploads` 转发到 `VITE_API_PROXY_TARGET`（默认 `http://localhost:8099`）。可复制 `frontend/.env.example` 为本地环境文件后再调整公开路径或代理地址。
 
-## 能做什么
+## 🧪 检查与测试
 
-- **逛植物**：目录、详情和筛选维度来自 `/api/catalog`。
-- **智能推荐**：保存多个场景画像，按环境与偏好生成推荐，并保留推荐结果供回看。
-- **购买流程**：购物车、收货地址、订单状态流转和售后操作位于 `/api/cart`、`/api/addresses`、`/api/orders`。
-- **持续养护**：植物档案、任务、提醒、健康报告和养护笔记位于 `/api/care`；定时任务由 Spring Scheduling 驱动。
-- **养护知识库**：公开文章、分类筛选、推荐文章、收藏与有用反馈位于 `/api/knowledge`。
-- **运营后台**：`/admin` 提供看板、品种与 SKU、订单、知识文章审核、推荐权重、用户角色和操作日志管理；后端使用 Spring Security 与 JWT 做认证和权限控制。
-
-## API 分区
-
-| 路径 | 用途 |
-| --- | --- |
-| `/api/auth` | 注册、登录、当前用户与退出 |
-| `/api/catalog` | 植物目录、详情和筛选项 |
-| `/api/profiles` | 场景画像 |
-| `/api/recommendations` | 推荐生成、历史结果和点击反馈 |
-| `/api/cart`、`/api/addresses`、`/api/orders` | 购物车、地址和订单 |
-| `/api/care` | 养护档案、任务、提醒与维护操作 |
-| `/api/knowledge` | 知识文章、筛选、收藏和反馈 |
-| `/api/admin/*` | 后台管理接口（按权限开放） |
-
-## 项目结构
-
-```text
-src/main/java/com/zyt/flowerkisstao/
-├── catalog/          # 植物目录与 SKU
-├── recommendation/   # 推荐规则与结果
-├── trade/            # 购物车、地址、订单
-├── care/             # 养护档案、任务、提醒
-├── knowledge/        # 养护知识库
-├── user/             # 认证、画像、角色
-├── operation/        # 运营看板与日志
-└── shared/           # 安全、Redis、配置、异常与通用 Web 层
-frontend/src/
-├── app/               # 路由、布局和全局样式
-├── modules/           # 与后端领域对应的页面、API、store 和类型
-└── shared/            # 请求、认证状态和通用组件
-```
-
-MySQL 保存业务数据；Redis 用于缓存、限流和分布式锁。前后端通过 `/api` JSON 接口通信，上传文件通过 `/uploads` 提供访问。
-
-## 配置与安全
-
-后端配置位于 [`src/main/resources/application.yml`](src/main/resources/application.yml)，可用环境变量覆盖数据库、Redis、上传目录和 JWT 设置：
-
-- `MYSQL_USERNAME`、`MYSQL_PASSWORD`（以及 `SPRING_DATASOURCE_URL`）
-- `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DATABASE`、`REDIS_ENABLED`
-- `APP_UPLOAD_DIR`
-- `JWT_SECRET`、`JWT_EXPIRE_MINUTES`
-
-配置文件中的默认值只适合本地开发。部署到共享或生产环境时，请注入新的数据库/Redis 凭据和 JWT 密钥，并限制上传目录权限。
-
-## 验证命令
-
-```bash
+```powershell
 # 后端单元测试与 Spring 上下文测试
 mvn test
 
@@ -118,19 +81,79 @@ pnpm type-check
 pnpm build
 ```
 
-以下脚本都应在仓库根目录运行（如上一步仍在 `frontend` 目录，请先执行 `cd ..`）：
+返回仓库根目录后再运行后端脚本：
 
-```bash
-# 在隔离数据库中重建 schema + data，并启动 Spring 上下文检查
-python scripts/verify_clean_init.py
-
-# 对比 schema.sql 与现有数据库的表、列和索引
-python scripts/verify_schema.py [database]
-
-# 后端已启动且数据库已初始化后，执行注册→推荐→下单→养护→后台的冒烟流程
-python scripts/smoke_demo.py --base-url http://127.0.0.1:8099
+```powershell
+cd ..
 ```
+
+需要已启动后端、已初始化数据库的端到端冒烟流程：
+
+```powershell
+python scripts/smoke_demo.py
+```
+
+该脚本会注册临时用户，依次验证推荐、购物车、下单、幂等支付、管理员发货、收货和养护维护，默认结束后清理临时数据。数据库专项检查：
+
+```powershell
+python scripts/verify_clean_init.py   # 临时库建表、灌库并启动 Spring 上下文
+python scripts/verify_schema.py       # 对比 schema.sql 与现有数据库
+```
+
+## 🔌 API 区域
+
+后端控制器按领域组织，统一挂在 `/api` 下：
+
+| 区域 | 路径 | 说明 |
+| --- | --- | --- |
+| 认证 | `/api/auth` | 注册、登录、当前用户与退出 |
+| 目录 | `/api/catalog` | 植物列表、详情和筛选项（公开 GET） |
+| 推荐 | `/api/profiles`、`/api/recommendations` | 场景画像与推荐结果 |
+| 养护 | `/api/care` | 档案、任务、提醒、健康报告和维护调度 |
+| 知识 | `/api/knowledge` | 文章、筛选、推荐和收藏 |
+| 交易 | `/api/cart`、`/api/orders`、`/api/addresses` | 购物车、订单和地址 |
+| 后台 | `/api/admin/**` | 商品、订单、内容、推荐规则、用户和运营数据 |
+
+完整路由以 `src/main/java/**/web/controller` 中的控制器定义为准。
+
+## 关键配置
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `MYSQL_USERNAME` / `MYSQL_PASSWORD` | `root` / 本地默认值 | MySQL 登录信息 |
+| `REDIS_HOST` / `REDIS_PORT` | `127.0.0.1` / `6386` | Redis 地址 |
+| `REDIS_ENABLED` | `true` | 缓存、限流和分布式锁总开关 |
+| `APP_UPLOAD_DIR` | `uploads` | 头像等上传文件目录 |
+| `JWT_SECRET` / `JWT_EXPIRE_MINUTES` | 本地开发默认值 / `120` | JWT 签名密钥与有效期（分钟） |
+| `VITE_API_PROXY_TARGET` | `http://localhost:8099` | 前端开发服务器代理目标 |
+
+生产环境必须通过安全的环境变量或密钥管理系统注入数据库密码、Redis 密码和 JWT 密钥。
+
+## 目录速览
+
+```text
+src/main/java/com/zyt/flowerkisstao/
+├── catalog/          # 植物品种与 SKU
+├── recommendation/   # 推荐模型、权重与结果
+├── care/             # 养护档案、任务和提醒
+├── knowledge/        # 养护文章
+├── trade/            # 购物车、地址和订单
+├── user/             # 认证、画像和 RBAC
+├── operation/        # 看板、访问与操作日志
+└── shared/           # 安全、缓存和通用配置
+frontend/src/modules/ # 与后端领域对应的 Vue 页面、状态和 API
+src/main/resources/db # schema.sql 与 data.sql
+scripts/              # 冒烟、初始化和 schema 校验脚本
+```
+
+## 参与开发
+
+修改后请至少运行对应端的类型检查、构建或测试。新增数据库字段时同步更新 `schema.sql`、实体和映射，并用 `verify_schema.py` 检查结构一致性。
 
 ## 许可证
 
 本项目以 [MIT License](LICENSE) 发布。
+
+
+
+

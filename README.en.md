@@ -1,115 +1,78 @@
 # FlowerKissTao · 花吻陶
 
-[中文说明](README.md)
+[中文 README](README.md) · [MIT License](LICENSE)
 
-FlowerKissTao is a full-stack application for indoor-plant enthusiasts. It lets people browse a plant catalog, generate explainable recommendations from light, space, pet-safety, and care-time constraints, then continue through purchasing and ongoing care records. The repository contains a Spring Boot API and a Vue single-page frontend.
+FlowerKissTao is a full-stack plant service built around one idea: understand a room before choosing a plant. A user records light, space, pet safety, and available care time; the service filters and ranks suitable plants, then carries the journey through discovery, purchase, and aftercare.
 
-![Indoor plants in a naturally lit greenhouse scene](frontend/src/assets/images/hero-greenhouse.webp)
+![Indoor plants in a bright, softly lit living-room scene](frontend/src/assets/images/hero-greenhouse.webp)
 
-The image reflects the product path on the home page: describe an environment first, then receive recommendations that can be acted on. Visitors can browse the catalog and knowledge base; signed-in users can save scene profiles, recommendation results, carts, orders, and care plans.
+## ✨ What it provides
 
-## Quick start
+- **Environment-aware recommendations**: hard filters and weighted ranking across light, temperature, humidity, space, budget, preference, and care effort, with an explanation for each result.
+- **Plant catalog**: browse species and SKUs with sizes, stock, and care attributes.
+- **Aftercare plans**: create a plant archive after delivery, schedule tasks and reminders, record health notes, and request a re-evaluation.
+- **Knowledge base**: read care articles publicly; signed-in users can save articles and submit usefulness feedback.
+- **Commerce flow**: manage addresses and cart items, create orders, simulate payment, ship, receive, and process after-sale states.
+- **Operations console**: role-protected screens for catalog, SKU inventory, orders, articles, recommendation weights, users, and operation logs.
 
-### Prerequisites
+## Runtime shape
 
-- JDK 17 or newer (the Maven build targets Java 17)
-- Maven
-- Node.js `^22.18.0 || >=24.12.0`
-- pnpm 11.9.0
-- MySQL (the default database name is `plant`)
-- Redis (the default port is `6386`; Redis can also be disabled through configuration)
-
-### 1. Initialize MySQL
-
-From the repository root, create the database and apply the supplied schema and seed scripts in order:
-
-```bash
-mysql -h 127.0.0.1 -P 3306 -u root -p -e "CREATE DATABASE IF NOT EXISTS plant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -h 127.0.0.1 -P 3306 -u root -p plant < src/main/resources/db/schema.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p plant < src/main/resources/db/data.sql
+```mermaid
+flowchart LR
+  B[Browser] --> F[Vue + Vite frontend<br/>127.0.0.1:5173]
+  F -->|/api and /uploads proxy| A[Spring Boot REST API<br/>127.0.0.1:8099]
+  A --> M[(MySQL<br/>plant)]
+  A -.cache / rate limit / lock.-> R[(Redis<br/>optional)]
+  A --> S[Spring Task<br/>aftercare scheduler]
 ```
 
-Set `MYSQL_*` and `REDIS_*` environment variables before starting the backend when your services use different addresses. Seed accounts are intended for local demonstration; you can also register a fresh account from the login page.
+## 🚀 Quick start
 
-### 2. Start the backend
+### 1. Prerequisites
 
-Run this from the repository root:
+- Java 17 or newer (the Maven release target is 17)
+- Maven
+- Node.js `^22.18.0` or `>=24.12.0`
+- pnpm `11.9.0`
+- MySQL with a database named `plant`
+- Redis at `127.0.0.1:6386` by default. If Redis is not available, set `REDIS_ENABLED=false` before starting the backend.
 
-```bash
+### 2. Initialize MySQL
+
+Run these commands from the repository root, replacing the credentials with your local setup:
+
+```powershell
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS plant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+Get-Content .\src\main\resources\db\schema.sql | mysql -u root -p plant
+Get-Content .\src\main\resources\db\data.sql   | mysql -u root -p plant
+```
+
+`schema.sql` creates the tables; `data.sql` loads roles, permissions, plants, SKUs, and knowledge articles. Together they create 24 business tables and seed `admin`, `operator`, and `demo` accounts for local RBAC demonstrations. Change passwords and the JWT secret before any real deployment.
+
+### 3. Start the backend
+
+```powershell
 mvn spring-boot:run
 ```
 
-The API listens on `http://127.0.0.1:8099` by default.
+The API listens on `http://127.0.0.1:8099`. Override the `REDIS_*` and `JWT_*` environment variables when your services use different settings. MySQL credentials use `MYSQL_USERNAME` and `MYSQL_PASSWORD`.
 
-### 3. Start the frontend
+### 4. Start the frontend
 
-In a second terminal:
+In another terminal:
 
-```bash
+```powershell
 cd frontend
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open <http://127.0.0.1:5173>. Vite proxies `/api` and `/uploads` to the backend on port 8099. See [`frontend/.env.example`](frontend/.env.example) for frontend variables.
+Open <http://127.0.0.1:5173>. Vite proxies `/api` and `/uploads` to `VITE_API_PROXY_TARGET` (default `http://localhost:8099`). Copy `frontend/.env.example` to a local environment file when you need to change the public base path or proxy target.
 
-## Capabilities
+## 🧪 Checks and tests
 
-- **Plant browsing**: catalog, details, and filter facets under `/api/catalog`.
-- **Personalized recommendations**: save multiple scene profiles, generate recommendations from constraints and preferences, and revisit past results.
-- **Commerce flow**: cart, shipping addresses, order transitions, and after-sales operations under `/api/cart`, `/api/addresses`, and `/api/orders`.
-- **Ongoing care**: plant archives, tasks, notifications, health reports, and notes under `/api/care`; scheduled work is driven by Spring Scheduling.
-- **Knowledge base**: public articles, facets, related recommendations, favorites, and usefulness feedback under `/api/knowledge`.
-- **Operations console**: `/admin` includes dashboards, species and SKU management, orders, article workflow, recommendation weights, users and roles, and operation logs. Spring Security and JWT protect authenticated and permissioned actions.
-
-## API areas
-
-| Path | Purpose |
-| --- | --- |
-| `/api/auth` | Registration, login, current user, and logout |
-| `/api/catalog` | Plant catalog, details, and facets |
-| `/api/profiles` | Scene profiles |
-| `/api/recommendations` | Recommendation generation, history, and click feedback |
-| `/api/cart`, `/api/addresses`, `/api/orders` | Cart, addresses, and orders |
-| `/api/care` | Care archives, tasks, notifications, and maintenance actions |
-| `/api/knowledge` | Articles, facets, favorites, and feedback |
-| `/api/admin/*` | Permission-gated administration APIs |
-
-## Repository map
-
-```text
-src/main/java/com/zyt/flowerkisstao/
-├── catalog/          # Plant catalog and SKUs
-├── recommendation/   # Recommendation rules and results
-├── trade/            # Cart, addresses, and orders
-├── care/             # Care archives, tasks, and notifications
-├── knowledge/        # Knowledge base
-├── user/             # Authentication, profiles, and roles
-├── operation/        # Operations dashboard and logs
-└── shared/           # Security, Redis, configuration, errors, and web concerns
-frontend/src/
-├── app/               # Router, layouts, and global styles
-├── modules/           # Domain-aligned pages, APIs, stores, and types
-└── shared/            # Requests, auth state, and reusable components
-```
-
-MySQL stores business data. Redis supports caching, rate limiting, and distributed locks. The frontend and backend communicate through JSON under `/api`; uploaded files are served under `/uploads`.
-
-## Configuration and security
-
-Backend settings live in [`src/main/resources/application.yml`](src/main/resources/application.yml). Environment variables can override database, Redis, upload, and JWT settings:
-
-- `MYSQL_USERNAME`, `MYSQL_PASSWORD` (and `SPRING_DATASOURCE_URL`)
-- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DATABASE`, `REDIS_ENABLED`
-- `APP_UPLOAD_DIR`
-- `JWT_SECRET`, `JWT_EXPIRE_MINUTES`
-
-Defaults in the configuration file are for local development. For shared or production environments, inject new database/Redis credentials and a new JWT secret, and restrict access to the upload directory.
-
-## Verification
-
-```bash
-# Backend tests and Spring context test
+```powershell
+# Backend unit tests and Spring context tests
 mvn test
 
 # Frontend type checking and production build
@@ -118,19 +81,79 @@ pnpm type-check
 pnpm build
 ```
 
-Run these scripts from the repository root (if the previous step left you in `frontend`, run `cd ..` first):
+Return to the repository root before running the backend scripts:
 
-```bash
-# Rebuild schema + data in an isolated database and check Spring startup
-python scripts/verify_clean_init.py
-
-# Compare schema.sql with an existing database's tables, columns, and indexes
-python scripts/verify_schema.py [database]
-
-# With the backend running and the database seeded, run the register → recommendation → order → care → admin smoke flow
-python scripts/smoke_demo.py --base-url http://127.0.0.1:8099
+```powershell
+cd ..
 ```
+
+For the end-to-end smoke flow, start the backend and initialize the database first:
+
+```powershell
+python scripts/smoke_demo.py
+```
+
+The script registers a temporary user and checks recommendation, cart, checkout, idempotent payment, admin shipping, receipt confirmation, and aftercare maintenance. It removes the temporary data by default. Database-focused checks:
+
+```powershell
+python scripts/verify_clean_init.py   # initialize an isolated DB and start Spring context
+python scripts/verify_schema.py       # compare schema.sql with a live database
+```
+
+## 🔌 API areas
+
+Controllers are grouped by domain under `/api`:
+
+| Area | Paths | Purpose |
+| --- | --- | --- |
+| Auth | `/api/auth` | Register, login, current user, logout |
+| Catalog | `/api/catalog` | Plant lists, details, and facets (public GET) |
+| Recommendation | `/api/profiles`, `/api/recommendations` | Scene profiles and recommendation results |
+| Care | `/api/care` | Archives, tasks, reminders, health reports, maintenance runs |
+| Knowledge | `/api/knowledge` | Articles, facets, recommendations, and favorites |
+| Commerce | `/api/cart`, `/api/orders`, `/api/addresses` | Cart, orders, and addresses |
+| Admin | `/api/admin/**` | Catalog, orders, content, rules, users, and operations |
+
+Use the controller definitions under `src/main/java/**/web/controller` as the authoritative route reference.
+
+## Key configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MYSQL_USERNAME` / `MYSQL_PASSWORD` | `root` / local default | MySQL credentials |
+| `REDIS_HOST` / `REDIS_PORT` | `127.0.0.1` / `6386` | Redis endpoint |
+| `REDIS_ENABLED` | `true` | Global cache, rate-limit, and lock switch |
+| `APP_UPLOAD_DIR` | `uploads` | Directory for uploaded avatars and files |
+| `JWT_SECRET` / `JWT_EXPIRE_MINUTES` | local development default / `120` | JWT signing key and lifetime in minutes |
+| `VITE_API_PROXY_TARGET` | `http://localhost:8099` | Frontend dev-server proxy target |
+
+Inject database, Redis, and JWT secrets through a secure environment or secret manager in production.
+
+## Repository map
+
+```text
+src/main/java/com/zyt/flowerkisstao/
+├── catalog/          # Plant species and SKUs
+├── recommendation/   # Recommendation model, weights, and results
+├── care/             # Archives, tasks, and reminders
+├── knowledge/        # Care articles
+├── trade/            # Cart, addresses, and orders
+├── user/             # Auth, profiles, and RBAC
+├── operation/        # Dashboard, visits, and operation logs
+└── shared/           # Security, cache, and shared configuration
+frontend/src/modules/ # Vue pages, stores, and APIs by domain
+src/main/resources/db # schema.sql and data.sql
+scripts/              # Smoke, initialization, and schema checks
+```
+
+## Contributing
+
+Run the type check, build, or tests for the area you changed. When adding a database field, update `schema.sql`, the entity, and its mapper together, then run `verify_schema.py` to check for drift.
 
 ## License
 
 Released under the [MIT License](LICENSE).
+
+
+
+
