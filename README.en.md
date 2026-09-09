@@ -1,73 +1,49 @@
-# FlowerKissTao
+# FlowerKissTao · 花吻陶
 
-FlowerKissTao is a full-stack indoor-plant shopping and care application. Users can browse plants, describe their space and care habits, receive environment-aware recommendations, place orders, and continue with personalized care plans and reminders after delivery. Operators and administrators use a separate back office to manage products, inventory, orders, knowledge articles, recommendation rules, and account permissions.
+[中文说明](README.md)
 
-[中文 README](README.md)
+FlowerKissTao is a full-stack application for indoor-plant enthusiasts. It lets people browse a plant catalog, generate explainable recommendations from light, space, pet-safety, and care-time constraints, then continue through purchasing and ongoing care records. The repository contains a Spring Boot API and a Vue single-page frontend.
 
-![FlowerKissTao plant-space hero image](frontend/src/assets/images/hero-greenhouse.webp)
+![Indoor plants in a naturally lit greenhouse scene](frontend/src/assets/images/hero-greenhouse.webp)
 
-## What it includes
-
-- Plant catalog, species, SKU, and inventory management
-- Recommendations based on light, temperature, humidity, space, budget, pets, and care habits
-- Registration, login, JWT sessions, roles, and permission checks
-- Cart, addresses, order creation, simulated payment, shipping, receiving, and after-sales flows
-- Post-purchase plant archives, care tasks, health reports, notes, and in-app notifications
-- A public plant-care knowledge base and an article publishing workflow for operators
-- Operations dashboard, visit tracking, operation logs, and recommendation-weight configuration
-
-## Technology and entry points
-
-| Area | Technology and entry point |
-| --- | --- |
-| Backend | Java 17, Spring Boot 3.5.16, Spring Security, MyBatis-Plus, MySQL, Redis |
-| Frontend | Vue 3, TypeScript, Vite, Vue Router, Pinia, Element Plus |
-| Backend bootstrap | `src/main/java/com/zyt/flowerkisstao/FlowerKissTaoApplication.java` |
-| Frontend entry | `frontend/src/main.ts` |
-| Database scripts | `src/main/resources/db/schema.sql`, `src/main/resources/db/data.sql` |
-
-```mermaid
-flowchart LR
-    Browser[Vue 3 + Vite frontend\n127.0.0.1:5173] -->|proxy /api and /uploads| API[Spring Boot API\n127.0.0.1:8099]
-    API --> MySQL[(MySQL\nplant)]
-    API --> Redis[(Redis\ncache / rate limits / locks)]
-```
-
-The Vite development server proxies `/api` and `/uploads` to `http://127.0.0.1:8099` by default. The backend listens on `8099`, the database is named `plant`, and Redis uses port `6386` by default. These defaults can be overridden with environment variables.
+The image reflects the product path on the home page: describe an environment first, then receive recommendations that can be acted on. Visitors can browse the catalog and knowledge base; signed-in users can save scene profiles, recommendation results, carts, orders, and care plans.
 
 ## Quick start
 
-### 1. Install prerequisites
+### Prerequisites
 
-- JDK 17 or newer
+- JDK 17 or newer (the Maven build targets Java 17)
 - Maven
-- Node.js `^22.18.0` or `>=24.12.0`
-- pnpm 11 (the frontend declares `pnpm@11.9.0`)
-- MySQL and Redis
+- Node.js `^22.18.0 || >=24.12.0`
+- pnpm 11.9.0
+- MySQL (the default database name is `plant`)
+- Redis (the default port is `6386`; Redis can also be disabled through configuration)
 
-### 2. Initialize MySQL
+### 1. Initialize MySQL
 
-Run these commands from the repository root. The default connection values match `src/main/resources/application.yml`; adjust the user, password, or port for your machine.
+From the repository root, create the database and apply the supplied schema and seed scripts in order:
 
 ```bash
-mysql -uroot -p -e "CREATE DATABASE IF NOT EXISTS plant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -uroot -p plant < src/main/resources/db/schema.sql
-mysql -uroot -p plant < src/main/resources/db/data.sql
+mysql -h 127.0.0.1 -P 3306 -u root -p -e "CREATE DATABASE IF NOT EXISTS plant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -h 127.0.0.1 -P 3306 -u root -p plant < src/main/resources/db/schema.sql
+mysql -h 127.0.0.1 -P 3306 -u root -p plant < src/main/resources/db/data.sql
 ```
 
-`data.sql` inserts local demo accounts and seed plants, SKUs, and knowledge articles. Change the demo passwords for any shared or production environment, and provide database credentials, the Redis password, and the JWT secret through environment variables.
+Set `MYSQL_*` and `REDIS_*` environment variables before starting the backend when your services use different addresses. Seed accounts are intended for local demonstration; you can also register a fresh account from the login page.
 
-### 3. Start the backend
+### 2. Start the backend
+
+Run this from the repository root:
 
 ```bash
 mvn spring-boot:run
 ```
 
-The backend is available at `http://127.0.0.1:8099` by default.
+The API listens on `http://127.0.0.1:8099` by default.
 
-### 4. Start the frontend
+### 3. Start the frontend
 
-In a second terminal, enter `frontend/`:
+In a second terminal:
 
 ```bash
 cd frontend
@@ -75,83 +51,86 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://127.0.0.1:5173`. If the backend runs on another port, set `VITE_API_PROXY_TARGET` in `frontend/.env`. The API prefix can be changed with `VITE_API_BASE_URL`; see [`frontend/.env.example`](frontend/.env.example).
+Open <http://127.0.0.1:5173>. Vite proxies `/api` and `/uploads` to the backend on port 8099. See [`frontend/.env.example`](frontend/.env.example) for frontend variables.
 
-### 5. Local demo accounts
+## Capabilities
 
-| Account | Password | Role |
-| --- | --- | --- |
-| `admin` | `admin123` | Administrator |
-| `operator` | `operator123` | Operator |
-| `demo` | `user123` | Regular user |
+- **Plant browsing**: catalog, details, and filter facets under `/api/catalog`.
+- **Personalized recommendations**: save multiple scene profiles, generate recommendations from constraints and preferences, and revisit past results.
+- **Commerce flow**: cart, shipping addresses, order transitions, and after-sales operations under `/api/cart`, `/api/addresses`, and `/api/orders`.
+- **Ongoing care**: plant archives, tasks, notifications, health reports, and notes under `/api/care`; scheduled work is driven by Spring Scheduling.
+- **Knowledge base**: public articles, facets, related recommendations, favorites, and usefulness feedback under `/api/knowledge`.
+- **Operations console**: `/admin` includes dashboards, species and SKU management, orders, article workflow, recommendation weights, users and roles, and operation logs. Spring Security and JWT protect authenticated and permissioned actions.
 
-After signing in, open `/admin` with an account that has the required permissions. These accounts come from `data.sql` and are intended for local development demos only.
+## API areas
 
-## Verification and builds
-
-Backend tests:
-
-```bash
-mvn test
-```
-
-Frontend type checking and production build:
-
-```bash
-cd frontend
-pnpm type-check
-pnpm build
-```
-
-The repository also includes three scripts that require local services:
-
-```bash
-python scripts/verify_clean_init.py   # initialize a temporary database and start Spring context
-python scripts/verify_schema.py       # compare schema.sql with an existing database
-python scripts/smoke_demo.py          # exercise registration, recommendation, trade, care, and admin flows
-```
-
-`verify_clean_init.py` only creates and drops the temporary database `plant_verify_flowerkisstao`. `smoke_demo.py` expects the backend, database, and Redis to be ready.
+| Path | Purpose |
+| --- | --- |
+| `/api/auth` | Registration, login, current user, and logout |
+| `/api/catalog` | Plant catalog, details, and facets |
+| `/api/profiles` | Scene profiles |
+| `/api/recommendations` | Recommendation generation, history, and click feedback |
+| `/api/cart`, `/api/addresses`, `/api/orders` | Cart, addresses, and orders |
+| `/api/care` | Care archives, tasks, notifications, and maintenance actions |
+| `/api/knowledge` | Articles, facets, favorites, and feedback |
+| `/api/admin/*` | Permission-gated administration APIs |
 
 ## Repository map
 
 ```text
 src/main/java/com/zyt/flowerkisstao/
-├── catalog/          plant species, SKUs, and inventory
-├── recommendation/   profiles, recommendation engine, and weights
-├── trade/            cart, addresses, orders, and after-sales
-├── care/             plant archives, care tasks, and reminders
-├── knowledge/        care articles and publishing workflow
-├── user/             authentication, profiles, roles, and permissions
-├── operation/        dashboard, visit tracking, and operation logs
-└── shared/           responses, security, and infrastructure
-
+├── catalog/          # Plant catalog and SKUs
+├── recommendation/   # Recommendation rules and results
+├── trade/            # Cart, addresses, and orders
+├── care/             # Care archives, tasks, and notifications
+├── knowledge/        # Knowledge base
+├── user/             # Authentication, profiles, and roles
+├── operation/        # Operations dashboard and logs
+└── shared/           # Security, Redis, configuration, errors, and web concerns
 frontend/src/
-├── app/              layouts, router, and global styles
-├── modules/          home, catalog, recommendation, trade, care, knowledge, user, operation
-└── shared/           requests, tokens, components, and session state
+├── app/               # Router, layouts, and global styles
+├── modules/           # Domain-aligned pages, APIs, stores, and types
+└── shared/            # Requests, auth state, and reusable components
 ```
 
-The main page routes are `/plants`, `/recommendation`, `/care`, `/knowledge`, `/cart`, `/orders`, and `/admin`. Pages that require authentication or permissions are guarded by the frontend router and Spring Security; the backend remains the security boundary.
+MySQL stores business data. Redis supports caching, rate limiting, and distributed locks. The frontend and backend communicate through JSON under `/api`; uploaded files are served under `/uploads`.
 
-## API entry points
+## Configuration and security
 
-Backend controllers use the `/api` prefix. The main resource groups are:
+Backend settings live in [`src/main/resources/application.yml`](src/main/resources/application.yml). Environment variables can override database, Redis, upload, and JWT settings:
 
-- `/api/auth`: registration, login, current user, and logout
-- `/api/catalog`: plant catalog and details
-- `/api/recommendations`: create and read recommendation results
-- `/api/care`: plant archives, care tasks, and notifications
-- `/api/knowledge`: public articles, favorites, and feedback
-- `/api/cart`, `/api/addresses`, `/api/orders`: shopping and order flows
-- `/api/admin/**`: product, order, article, recommendation, user, and operations management
+- `MYSQL_USERNAME`, `MYSQL_PASSWORD` (and `SPRING_DATASOURCE_URL`)
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DATABASE`, `REDIS_ENABLED`
+- `APP_UPLOAD_DIR`
+- `JWT_SECRET`, `JWT_EXPIRE_MINUTES`
 
-For exact request parameters, use the controllers and DTOs under `src/main/java/com/zyt/flowerkisstao/**/web/controller`.
+Defaults in the configuration file are for local development. For shared or production environments, inject new database/Redis credentials and a new JWT secret, and restrict access to the upload directory.
 
-## Contributing
+## Verification
 
-Before submitting a change, run the backend tests relevant to the change plus `pnpm type-check` and `pnpm build` in `frontend/`. When changing the database schema, update `schema.sql`, any required seed data, and the verification scripts together.
+```bash
+# Backend tests and Spring context test
+mvn test
+
+# Frontend type checking and production build
+cd frontend
+pnpm type-check
+pnpm build
+```
+
+Run these scripts from the repository root (if the previous step left you in `frontend`, run `cd ..` first):
+
+```bash
+# Rebuild schema + data in an isolated database and check Spring startup
+python scripts/verify_clean_init.py
+
+# Compare schema.sql with an existing database's tables, columns, and indexes
+python scripts/verify_schema.py [database]
+
+# With the backend running and the database seeded, run the register → recommendation → order → care → admin smoke flow
+python scripts/smoke_demo.py --base-url http://127.0.0.1:8099
+```
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).
